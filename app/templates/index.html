@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNS Modeler</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="0 0 18 18" fill="none">
+      <rect x="1" y="1" width="7" height="7" rx="1.5" fill="#2b579a"/>
+      <rect x="10" y="1" width="7" height="7" rx="1.5" fill="#2b579a" opacity="0.5"/>
+      <rect x="1" y="10" width="7" height="7" rx="1.5" fill="#2b579a" opacity="0.5"/>
+      <rect x="10" y="10" width="7" height="7" rx="1.5" fill="#2b579a" opacity="0.25"/>
+    </svg>
+    UNS Modeler
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-title">Árvore de Decomposição</div>
+  <div class="topbar-actions">
+    <button class="btn btn-sm" onclick="clearAll()">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2h4v2M3 4l1 8h6l1-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Limpar
+    </button>
+    <button class="btn btn-sm" onclick="loadSample()">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M9 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5L9 1z" stroke="currentColor" stroke-width="1.2"/><path d="M9 1v4h4" stroke="currentColor" stroke-width="1.2"/></svg>
+      Exemplo
+    </button>
+    <button class="btn btn-sm btn-primary" onclick="generateJson()">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 4l3 3-3 3M7 10h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Gerar JSON
+    </button>
+  </div>
+</div>
+
+<!-- RIBBON -->
+<div class="ribbon">
+  <div class="ribbon-group">
+    <label>Adicionar</label>
+    <button class="btn" onclick="openAddRoot()">
+      <svg viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 4v6M4 7h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Nível Raiz
+    </button>
+  </div>
+  <div class="ribbon-group">
+    <label>Visualização</label>
+    <button class="btn" onclick="fitView()">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M1 5V2h3M10 2h3v3M13 9v3h-3M4 12H1V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Ajustar Tela
+    </button>
+  </div>
+  <div class="ribbon-group">
+    <label>Dica</label>
+    <span style="font-size:11px;color:var(--text-muted)">
+      <b style="color:var(--accent)">Clique</b> no nó para inspecionar &nbsp;·&nbsp;
+      <b style="color:var(--accent)">Botão direito</b> para menu rápido
+    </span>
+  </div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- INSPECTOR (esquerda) -->
+  <div class="inspector" id="inspector">
+    <div class="inspector-inner">
+      <div class="inspector-header">
+        <div class="ins-dot" id="ins-dot"></div>
+        <div class="ins-node-name" id="ins-name">—</div>
+        <button class="inspector-close" onclick="closeInspector()">✕</button>
+      </div>
+      <div class="inspector-body" id="ins-body"></div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="tree-svg">
+      <g id="canvas-g"></g>
+    </svg>
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-title">Nenhum nó na árvore</div>
+      <div class="empty-hint">Clique em "Nível Raiz" para começar</div>
+    </div>
+    <div class="legend">
+      <div class="legend-row"><div class="legend-dot" style="background:#2b579a"></div> Raiz</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#106ebe"></div> Nível 1</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#038387"></div> Nível 2</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#107c10"></div> Nível 3+</div>
+    </div>
+    <div class="zoom-controls">
+      <div class="zoom-btn" onclick="zoomIn()">+</div>
+      <div class="zoom-btn" onclick="zoomOut()">−</div>
+      <div class="zoom-btn" onclick="fitView()" title="Ajustar">⊡</div>
+    </div>
+  </div>
+
+  <!-- JSON PANEL -->
+  <div class="panel-json">
+    <div class="panel-header">
+      <span>📄 JSON Output</span>
+      <button class="btn btn-sm btn-ghost" onclick="copyJson()" title="Copiar JSON">
+        <svg viewBox="0 0 14 14" fill="none"><rect x="4" y="4" width="8" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 10V2h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Copiar
+      </button>
+    </div>
+    <div class="panel-body">
+      <pre class="json-output" id="json-output">// Clique em "Gerar JSON"
+// para visualizar aqui</pre>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <span>⬡ <b id="stat-nodes">0</b> nós</span>
+  <span>↔ <b id="stat-levels">0</b> níveis</span>
+  <span>⚙ <b id="stat-attrs">0</b> atributos</span>
+  <span id="stat-sel" style="margin-left:auto;opacity:0.75"></span>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx-menu" id="ctx-menu">
+  <div class="ctx-item" id="ctx-inspect">
+    <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 6v4M7 4.5v.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    Inspecionar nó
+  </div>
+  <div class="ctx-item" id="ctx-rename">
+    <svg viewBox="0 0 14 14" fill="none"><path d="M2 10.5l2.5-.5L11 3.5l-2-2L2.5 8 2 10.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+    Renomear
+  </div>
+  <div class="ctx-item" id="ctx-add-child">
+    <svg viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v6M4 7h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    Adicionar filho
+  </div>
+  <div class="ctx-item" id="ctx-add-attr">
+    <svg viewBox="0 0 14 14" fill="none"><path d="M4 7h6M7 4v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/></svg>
+    Adicionar atributo
+  </div>
+  <hr class="ctx-sep">
+  <div class="ctx-item danger" id="ctx-delete">
+    <svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2h4v2M3 4l1 8h6l1-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Remover nó
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modal-box">
+    <div class="modal-header" id="modal-title"></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" id="lbl-name">Nome</label>
+        <input class="form-input" id="input-name" autocomplete="off">
+      </div>
+      <div class="form-group" id="fg-value" style="display:none">
+        <label class="form-label">Valor</label>
+        <input class="form-input" id="input-value" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="modal-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/script.js"></script>
+
+</body>
+</html>
