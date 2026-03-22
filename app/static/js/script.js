@@ -233,19 +233,42 @@ function clearAll() {
 
 function loadSample() {
   model = [{
-    id:'r1', name:'Enterprise',
-    attributes:[{id:'a1',name:'location',value:'Brasil'},{id:'a2',name:'version',value:'2.0'}],
-    children:[
-      { id:'s1', name:'Site São Paulo', attributes:[{id:'a3',name:'type',value:'manufacturing'}], children:[
-        { id:'l1', name:'Linha A', attributes:[{id:'a4',name:'shift',value:'3x8'}], children:[] },
-        { id:'l2', name:'Linha B', attributes:[], children:[] },
-        { id:'l3', name:'Utilidades', attributes:[], children:[] }
-      ]},
-      { id:'s2', name:'Site Rio', attributes:[], children:[
-        { id:'l4', name:'Almoxarifado', attributes:[{id:'a5',name:'capacity',value:'500t'}], children:[] }
-      ]},
-      { id:'s3', name:'Sede Corp.', attributes:[{id:'a6',name:'employees',value:'450'}], children:[] }
-    ]
+    id: 'n-plant', name: 'Plant', attributes: [],
+    children: [{
+      id: 'n-shop', name: 'Shop', attributes: [],
+      children: [{
+        id: 'n-line', name: 'Line', attributes: [],
+        children: [
+          {
+            id: 'n-dp1', name: 'DataProducts', attributes: [],
+            children: [
+              { id: 'n-ww1', name: 'WeldingWizard', attributes: [], children: [] },
+              { id: 'n-cd1', name: 'CycleData',     attributes: [], children: [] }
+            ]
+          },
+          {
+            id: 'n-station', name: 'Station', attributes: [],
+            children: [{
+              id: 'n-robot', name: 'Robot',
+              attributes: [
+                { id: 'a1', name: 'HomeStatus', value: '' },
+                { id: 'a2', name: 'CSALD',      value: '' },
+                { id: 'a3', name: 'CGOOD',      value: '' },
+                { id: 'a4', name: 'NSEQ',       value: '' },
+                { id: 'a5', name: 'TCData',     value: '' }
+              ],
+              children: [{
+                id: 'n-dp2', name: 'DataProducts', attributes: [],
+                children: [
+                  { id: 'n-ww2', name: 'WeldingWizard', attributes: [], children: [] },
+                  { id: 'n-cd2', name: 'CycleData',     attributes: [], children: [] }
+                ]
+              }]
+            }]
+          }
+        ]
+      }]
+    }]
   }];
   updateTree();
 }
