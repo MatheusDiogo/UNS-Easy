@@ -518,3 +518,102 @@ body {
   background: var(--accent-mid);
   border-color: var(--accent-mid);
 }
+
+/* ══ NODE TYPE FLAGS ══════════════════════════════════════════ */
+
+/* Toggle buttons — active state for Instanciável */
+.btn-flag-active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.btn-flag-active:hover {
+  background: #c8d9f0;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Active state for Saída de Dados */
+.btn-flag-data.btn-flag-active {
+  background: #fce8dc;
+  border-color: #ca5010;
+  color: #ca5010;
+}
+.btn-flag-data.btn-flag-active:hover {
+  background: #f8d5c0;
+  border-color: #ca5010;
+  color: #ca5010;
+}
+
+/* Locked attributes hint */
+.ins-locked {
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding: 16px 12px;
+}
+.ins-locked b { color: var(--text-secondary); }
+
+/* Attribute type pill (IN / VAL) */
+.attr-pill {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  min-width: 26px;
+  text-align: center;
+}
+.pill-in {
+  background: #dce6f4;
+  color: var(--accent-mid);
+}
+.pill-val {
+  background: #d6f0f0;
+  color: var(--teal);
+}
+
+/* Input attr hint text */
+.attr-input-hint {
+  font-style: italic;
+  opacity: 0.45;
+  font-size: 10px;
+}
+
+/* ── ATTR MODAL TYPE ROW ── */
+.attr-type-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.attr-type-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.attr-type-opt:hover { background: var(--surface2); border-color: var(--border2); }
+.attr-type-opt input[type="radio"] { display: none; }
+.attr-type-opt:has(input:checked) {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+.attr-type-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.badge-val { background: #d6f0f0; color: var(--teal); }
+.badge-in  { background: #dce6f4; color: var(--accent-mid); }
+.attr-type-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}

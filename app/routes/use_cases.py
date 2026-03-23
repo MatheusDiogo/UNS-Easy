@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, jsonify, request
 from app.database import get_db
 
@@ -23,17 +24,21 @@ def _build_tree(db, use_case_id):
 
     attr_map = {}
     for a in attrs:
-        attr_map.setdefault(a["node_id"], []).append(
-            {"id": a["id"], "name": a["name"], "value": a["value"]}
-        )
+        attr_map.setdefault(a["node_id"], []).append({
+            "id":      a["id"],
+            "name":    a["name"],
+            "value":   a["value"],
+            "isInput": bool(a["is_input"]),
+        })
 
     node_map = {}
     for n in nodes:
         node_map[n["id"]] = {
-            "id": n["id"],
-            "name": n["name"],
+            "id":         n["id"],
+            "name":       n["name"],
+            "flags":      json.loads(n["flags"] or "[]"),
             "attributes": attr_map.get(n["id"], []),
-            "children": [],
+            "children":   [],
         }
 
     roots = []
@@ -47,17 +52,18 @@ def _build_tree(db, use_case_id):
     return roots
 
 
-def _flatten_nodes(nodes, use_case_id, parent_id=None, position=0):
-    """Flatten nested tree into list of (node_row, attrs_list)."""
+def _flatten_nodes(nodes, use_case_id, parent_id=None):
+    """Flatten nested tree into list of rows."""
     rows = []
     for i, node in enumerate(nodes):
         rows.append({
-            "id": node["id"],
+            "id":          node["id"],
             "use_case_id": use_case_id,
-            "parent_id": parent_id,
-            "name": node["name"],
-            "position": i,
-            "attributes": node.get("attributes", []),
+            "parent_id":   parent_id,
+            "name":        node["name"],
+            "flags":       json.dumps(node.get("flags", [])),
+            "position":    i,
+            "attributes":  node.get("attributes", []),
         })
         rows.extend(_flatten_nodes(node.get("children", []), use_case_id, node["id"]))
     return rows
@@ -82,7 +88,6 @@ def create_use_case():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name is required"}), 400
-
     db = get_db()
     cur = db.execute("INSERT INTO use_cases (name) VALUES (?)", (name,))
     db.commit()
@@ -98,7 +103,6 @@ def get_use_case(uc_id):
     uc = db.execute("SELECT * FROM use_cases WHERE id = ?", (uc_id,)).fetchone()
     if not uc:
         return jsonify({"error": "not found"}), 404
-
     tree = _build_tree(db, uc_id)
     return jsonify({**dict(uc), "tree": tree})
 
@@ -111,7 +115,6 @@ def rename_use_case(uc_id):
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name is required"}), 400
-
     db = get_db()
     db.execute(
         "UPDATE use_cases SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -137,19 +140,18 @@ def save_tree(uc_id):
     if not uc:
         return jsonify({"error": "not found"}), 404
 
-    # Delete everything and reinsert (simplest consistency strategy)
     db.execute("DELETE FROM nodes WHERE use_case_id = ?", (uc_id,))
 
     flat = _flatten_nodes(tree, uc_id)
     for n in flat:
         db.execute(
-            "INSERT INTO nodes (id, use_case_id, parent_id, name, position) VALUES (?,?,?,?,?)",
-            (n["id"], n["use_case_id"], n["parent_id"], n["name"], n["position"]),
+            "INSERT INTO nodes (id, use_case_id, parent_id, name, flags, position) VALUES (?,?,?,?,?,?)",
+            (n["id"], n["use_case_id"], n["parent_id"], n["name"], n["flags"], n["position"]),
         )
         for j, a in enumerate(n["attributes"]):
             db.execute(
-                "INSERT INTO attributes (id, node_id, name, value, position) VALUES (?,?,?,?,?)",
-                (a["id"], n["id"], a["name"], a.get("value", ""), j),
+                "INSERT INTO attributes (id, node_id, name, value, is_input, position) VALUES (?,?,?,?,?,?)",
+                (a["id"], n["id"], a["name"], a.get("value", ""), 1 if a.get("isInput") else 0, j),
             )
 
     db.execute(
