@@ -1,9 +1,23 @@
 /* ================================================================
+   API HELPERS
+================================================================ */
+const API = {
+  async listUseCases()       { return fetch('/api/use-cases/').then(r => r.json()); },
+  async createUseCase(name)  { return fetch('/api/use-cases/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }).then(r => r.json()); },
+  async getUseCase(id)       { return fetch(`/api/use-cases/${id}`).then(r => r.json()); },
+  async renameUseCase(id, name) { return fetch(`/api/use-cases/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }).then(r => r.json()); },
+  async saveTree(id, tree)   { return fetch(`/api/use-cases/${id}/tree`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tree}) }).then(r => r.json()); },
+  async deleteUseCase(id)    { return fetch(`/api/use-cases/${id}`, { method:'DELETE' }).then(r => r.json()); },
+};
+
+/* ================================================================
    MODEL
 ================================================================ */
 let model = [];
-let selectedNode = null;   // context menu target
-let inspectedNode = null;  // inspector panel target
+let currentUseCaseId = null;
+let selectedNode = null;
+let inspectedNode = null;
+let _saveTimer = null;
 
 const LEVEL_COLORS = ['#2b579a','#106ebe','#038387','#107c10','#ca5010','#6b3a7d'];
 const levelColor = d => LEVEL_COLORS[Math.min(d, LEVEL_COLORS.length - 1)];
@@ -45,28 +59,135 @@ function updateStats() {
   document.getElementById('empty-state').style.display = model.length ? 'none' : 'block';
 }
 
+function setSaveStatus(state) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  if (state === 'saving') { el.textContent = '● Salvando...'; el.style.opacity = '0.6'; }
+  else if (state === 'saved') { el.textContent = '✓ Salvo'; el.style.opacity = '1'; setTimeout(() => { el.textContent = ''; }, 2500); }
+  else { el.textContent = ''; }
+}
+
 /* ================================================================
-   MODAL — rewritten to avoid closure/delegation conflicts
+   USE CASE SIDEBAR
+================================================================ */
+async function loadUseCaseList() {
+  const list = await API.listUseCases();
+  renderUseCaseList(list);
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('uc-sidebar');
+  const toggle  = document.getElementById('uc-toggle');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  toggle.classList.toggle('collapsed', collapsed);
+}
+
+function renderUseCaseList(list) {
+  const container = document.getElementById('uc-list');
+ 
+  if (!list.length) {
+    container.innerHTML = `<div class="uc-empty">Nenhum caso salvo.<br>Clique em <b>Novo</b> para criar.</div>`;
+    return;
+  }
+ 
+  const icoEdit  = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M2 10.5l2.5-.5L11 3.5l-2-2L2.5 8 2 10.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+  const icoTrash = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M2 4h10M5 4V2h4v2M3 4l1 8h6l1-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+ 
+  container.innerHTML = list.map(uc => `
+    <div class="uc-item ${uc.id === currentUseCaseId ? 'active' : ''}" data-id="${uc.id}">
+      <div class="uc-item-name" title="${uc.name}">${uc.name}</div>
+      <div class="uc-item-acts">
+        <button class="btn btn-icon btn-ghost btn-sm" title="Renomear" data-action="rename-uc" data-id="${uc.id}">${icoEdit}</button>
+        <button class="btn btn-icon btn-ghost btn-sm" title="Excluir" style="color:var(--red)" data-action="delete-uc" data-id="${uc.id}">${icoTrash}</button>
+      </div>
+    </div>
+  `).join('');
+ 
+  container.querySelectorAll('.uc-item').forEach(el => {
+    el.addEventListener('click', async e => {
+      const btn = e.target.closest('[data-action]');
+      if (btn) {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+        if (btn.dataset.action === 'rename-uc') await doRenameUseCase(id);
+        if (btn.dataset.action === 'delete-uc') await doDeleteUseCase(id);
+        return;
+      }
+      await loadUseCaseById(parseInt(el.dataset.id));
+    });
+  });
+}
+
+async function loadUseCaseById(id) {
+  const data = await API.getUseCase(id);
+  currentUseCaseId = data.id;
+  model = data.tree || [];
+  closeInspector();
+  updateTree();
+  await loadUseCaseList();
+  document.getElementById('uc-title').textContent = 'Caso de Uso: '+data.name;
+  setSaveStatus('');
+}
+
+async function doNewUseCase() {
+  openModal({
+    title: 'Novo Caso de Uso',
+    namePH: 'ex: Planta Principal, Projeto X...',
+    cb: async name => {
+      const uc = await API.createUseCase(name);
+      await loadUseCaseById(uc.id);
+    }
+  });
+}
+
+async function doRenameUseCase(id) {
+  const list = await API.listUseCases();
+  const uc = list.find(u => u.id === id);
+  if (!uc) return;
+  openModal({
+    title: 'Renomear Caso de Uso',
+    nameLabel: 'Novo nome',
+    defName: uc.name,
+    cb: async name => {
+      await API.renameUseCase(id, name);
+      if (currentUseCaseId === id) document.getElementById('uc-title').textContent = name;
+      await loadUseCaseList();
+    }
+  });
+}
+
+async function doDeleteUseCase(id) {
+  const list = await API.listUseCases();
+  const uc = list.find(u => u.id === id);
+  if (!uc || !confirm(`Excluir "${uc.name}" permanentemente?`)) return;
+  await API.deleteUseCase(id);
+  if (currentUseCaseId === id) {
+    currentUseCaseId = null;
+    model = [];
+    closeInspector();
+    updateTree();
+    document.getElementById('uc-title').textContent = 'Selecione um caso de uso';
+  }
+  await loadUseCaseList();
+}
+
+/* ================================================================
+   MODAL
 ================================================================ */
 let _modalCb = null;
 
 function openModal({ title, nameLabel = 'Nome', namePH = '', showValue = false, valuePH = '', defName = '', defValue = '', cb }) {
   _modalCb = cb;
-
   document.getElementById('modal-title').textContent = title;
   document.getElementById('lbl-name').textContent = nameLabel;
-
   const inputName = document.getElementById('input-name');
   const inputValue = document.getElementById('input-value');
-
   inputName.placeholder = namePH;
   inputName.value = defName;
   inputName.style.outline = '';
-
   document.getElementById('fg-value').style.display = showValue ? 'block' : 'none';
   inputValue.placeholder = valuePH;
   inputValue.value = defValue;
-
   document.getElementById('modal').classList.add('open');
   setTimeout(() => inputName.focus(), 40);
 }
@@ -74,11 +195,7 @@ function openModal({ title, nameLabel = 'Nome', namePH = '', showValue = false, 
 function _confirmModal() {
   const inputName = document.getElementById('input-name');
   const name = inputName.value.trim();
-  if (!name) {
-    inputName.style.outline = '2px solid var(--red)';
-    inputName.focus();
-    return;
-  }
+  if (!name) { inputName.style.outline = '2px solid var(--red)'; inputName.focus(); return; }
   inputName.style.outline = '';
   const value = document.getElementById('input-value').value.trim();
   const cb = _modalCb;
@@ -91,19 +208,9 @@ function closeModal() {
   _modalCb = null;
 }
 
-/* Prevent clicks inside modal box from closing it via overlay listener */
 document.getElementById('modal-box').addEventListener('click', e => e.stopPropagation());
-
-/* Clicking the dark overlay closes the modal */
 document.getElementById('modal').addEventListener('click', () => closeModal());
-
-/* Confirm button */
-document.getElementById('modal-ok').addEventListener('click', e => {
-  e.stopPropagation();
-  _confirmModal();
-});
-
-/* Keyboard shortcuts inside inputs */
+document.getElementById('modal-ok').addEventListener('click', e => { e.stopPropagation(); _confirmModal(); });
 ['input-name', 'input-value'].forEach(id =>
   document.getElementById(id).addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); _confirmModal(); }
@@ -112,21 +219,19 @@ document.getElementById('modal-ok').addEventListener('click', e => {
 );
 
 /* ================================================================
-   ACTIONS
+   TREE ACTIONS (all call markDirty after mutation)
 ================================================================ */
 function openAddRoot() {
+  if (!currentUseCaseId) { alert('Selecione ou crie um Caso de Uso primeiro.'); return; }
   openModal({
     title: 'Adicionar Nível Raiz',
     namePH: 'ex: Enterprise, Planta...',
-    cb: name => {
-      model.push(mkNode(name));
-      updateTree();
-    }
+    cb: name => { model.push(mkNode(name)); updateTree(); markDirty(); }
   });
 }
 
 function doAddChild(node) {
-  const nodeId = node.id; // capture id, not reference (re-fetched after modal)
+  const nodeId = node.id;
   openModal({
     title: `Filho de "${node.name}"`,
     namePH: 'ex: Site A, Área 1...',
@@ -135,10 +240,8 @@ function doAddChild(node) {
       if (!target) return;
       target.children.push(mkNode(name));
       updateTree();
-      // Re-fetch inspectedNode in case it's this node
-      if (inspectedNode && inspectedNode.id === nodeId) {
-        renderInspector(target);
-      }
+      markDirty();
+      if (inspectedNode && inspectedNode.id === nodeId) renderInspector(target);
     }
   });
 }
@@ -155,9 +258,8 @@ function doAddAttr(node) {
       if (!target) return;
       target.attributes.push({ id: crypto.randomUUID(), name, value });
       updateTree();
-      if (inspectedNode && inspectedNode.id === nodeId) {
-        renderInspector(target);
-      }
+      markDirty();
+      if (inspectedNode && inspectedNode.id === nodeId) renderInspector(target);
     }
   });
 }
@@ -173,9 +275,8 @@ function doRename(node) {
       if (!target) return;
       target.name = name;
       updateTree();
-      if (inspectedNode && inspectedNode.id === nodeId) {
-        renderInspector(target);
-      }
+      markDirty();
+      if (inspectedNode && inspectedNode.id === nodeId) renderInspector(target);
     }
   });
 }
@@ -186,6 +287,7 @@ function doDelete(node) {
   removeNode(model, node);
   selectedNode = null;
   updateTree();
+  markDirty();
 }
 
 function doDeleteChild(parentNode, childNode) {
@@ -193,12 +295,14 @@ function doDeleteChild(parentNode, childNode) {
   parentNode.children = parentNode.children.filter(c => c !== childNode);
   if (inspectedNode && inspectedNode.id === childNode.id) closeInspector();
   updateTree();
+  markDirty();
   renderInspector(parentNode);
 }
 
 function doDeleteAttr(node, attrId) {
   node.attributes = node.attributes.filter(a => a.id !== attrId);
   updateTree();
+  markDirty();
   renderInspector(node);
 }
 
@@ -218,20 +322,20 @@ function doEditAttr(node, attr) {
       const a = target.attributes.find(x => x.id === attrId);
       if (a) { a.name = name; a.value = value; }
       updateTree();
-      if (inspectedNode && inspectedNode.id === nodeId) {
-        renderInspector(target);
-      }
+      markDirty();
+      if (inspectedNode && inspectedNode.id === nodeId) renderInspector(target);
     }
   });
 }
 
 function clearAll() {
   if (!model.length || confirm('Limpar toda a árvore?')) {
-    model = []; closeInspector(); updateTree();
+    model = []; closeInspector(); updateTree(); markDirty();
   }
 }
 
 function loadSample() {
+  if (!currentUseCaseId) { alert('Selecione ou crie um Caso de Uso primeiro.'); return; }
   model = [{
     id: 'n-plant', name: 'Plant', attributes: [],
     children: [{
@@ -271,6 +375,7 @@ function loadSample() {
     }]
   }];
   updateTree();
+  markDirty();
 }
 
 function generateJson() {
@@ -311,41 +416,28 @@ function renderInspector(node) {
   if (!node) return;
   const depth = getDepth(model, node);
   const color = levelColor(depth);
-
   document.getElementById('ins-dot').style.background = color;
   document.getElementById('ins-name').textContent = node.name;
-
   const body = document.getElementById('ins-body');
 
   const icoEdit  = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M2 10.5l2.5-.5L11 3.5l-2-2L2.5 8 2 10.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
   const icoTrash = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M2 4h10M5 4V2h4v2M3 4l1 8h6l1-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const icoInfo  = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 6v4M7 4.5v.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
   const icoPlus  = `<svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-
   const childColor = levelColor(depth + 1);
 
-  const nodeHtml = `
+  body.innerHTML = `
     <div class="ins-section">
-      <div class="ins-section-header">
-        <span class="ins-section-title">Nó</span>
-      </div>
+      <div class="ins-section-header"><span class="ins-section-title">Nó</span></div>
       <div class="ins-node-actions">
-        <button class="btn btn-sm" data-action="rename">
-          ${icoEdit} Renomear
-        </button>
-        <button class="btn btn-sm btn-danger" data-action="delete">
-          ${icoTrash} Remover nó
-        </button>
+        <button class="btn btn-sm" data-action="rename">${icoEdit} Renomear</button>
+        <button class="btn btn-sm btn-danger" data-action="delete">${icoTrash} Remover nó</button>
       </div>
-    </div>`;
-
-  const childrenHtml = `
+    </div>
     <div class="ins-section">
       <div class="ins-section-header">
         <span class="ins-section-title">Filhos <span class="ins-count" style="color:${color}">${node.children.length}</span></span>
-        <button class="btn btn-sm btn-primary" data-action="add-child">
-          ${icoPlus} Adicionar
-        </button>
+        <button class="btn btn-sm btn-primary" data-action="add-child">${icoPlus} Adicionar</button>
       </div>
       ${node.children.length === 0
         ? `<div class="ins-empty">Nenhum filho — clique em Adicionar</div>`
@@ -360,15 +452,11 @@ function renderInspector(node) {
               <button class="btn btn-icon btn-ghost btn-sm" title="Remover" style="color:var(--red)" data-action="delete-child" data-id="${ch.id}">${icoTrash}</button>
             </div>
           </div>`).join('')}
-    </div>`;
-
-  const attrsHtml = `
+    </div>
     <div class="ins-section">
       <div class="ins-section-header">
         <span class="ins-section-title">Atributos <span class="ins-count" style="color:var(--teal)">${node.attributes.length}</span></span>
-        <button class="btn btn-sm" style="border-color:var(--teal);color:var(--teal)" data-action="add-attr">
-          ${icoPlus} Adicionar
-        </button>
+        <button class="btn btn-sm" style="border-color:var(--teal);color:var(--teal)" data-action="add-attr">${icoPlus} Adicionar</button>
       </div>
       ${node.attributes.length === 0
         ? `<div class="ins-empty">Nenhum atributo — clique em Adicionar</div>`
@@ -383,27 +471,16 @@ function renderInspector(node) {
           </div>`).join('')}
     </div>`;
 
-  body.innerHTML = nodeHtml + childrenHtml + attrsHtml;
-
-  /* ---------- Event delegation — node id captured in closure ---------- */
   const nodeId = node.id;
-
   body.onclick = e => {
-    /* Ignore clicks that are bubbling up while modal is open */
     if (document.getElementById('modal').classList.contains('open')) return;
-
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
-
     e.stopPropagation();
-
     const action = btn.dataset.action;
-    const id     = btn.dataset.id;
-
-    // Always re-fetch the node from model so we have fresh data
+    const id = btn.dataset.id;
     const freshNode = findById(nodeId);
     if (!freshNode) return;
-
     if      (action === 'rename')        doRename(freshNode);
     else if (action === 'delete')        doDelete(freshNode);
     else if (action === 'add-child')     doAddChild(freshNode);
@@ -427,10 +504,7 @@ function highlightNode(nodeId) {
    CONTEXT MENU
 ================================================================ */
 const ctxMenu = document.getElementById('ctx-menu');
-
-/* Close context menu on any click outside */
 document.addEventListener('click', () => ctxMenu.classList.remove('open'));
-
 document.getElementById('ctx-inspect').onclick   = e => { e.stopPropagation(); if (selectedNode) openInspector(selectedNode); };
 document.getElementById('ctx-rename').onclick    = e => { e.stopPropagation(); if (selectedNode) doRename(selectedNode); };
 document.getElementById('ctx-add-child').onclick = e => { e.stopPropagation(); if (selectedNode) doAddChild(selectedNode); };
@@ -456,7 +530,6 @@ function updateTree() {
   d3.tree().nodeSize([NODE_H + NODE_GAP_Y, NODE_W + NODE_GAP_X])(root);
 
   const nodes = root.descendants().filter(d => d.depth > 0);
-
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   nodes.forEach(d => {
     x0 = Math.min(x0, d.y); x1 = Math.max(x1, d.y + NODE_W);
@@ -467,7 +540,6 @@ function updateTree() {
   svgEl.setAttribute('width',  Math.max(x1 - x0 + PAD * 2 + 200, 800));
   svgEl.setAttribute('height', Math.max(y1 - y0 + PAD * 2, 500));
 
-  // Links
   const lg = g.append('g');
   root.links().forEach(lnk => {
     const sx = lnk.source.depth === 0 ? offX - 40 : lnk.source.y + offX + NODE_W;
@@ -479,7 +551,6 @@ function updateTree() {
       .style('stroke', '#d0ccc8').style('stroke-width', 1.5).style('fill', 'none');
   });
 
-  // Nodes
   const ng = g.append('g');
   nodes.forEach(d => {
     const x = d.y + offX, y = d.x + offY - NODE_H / 2;
@@ -492,24 +563,19 @@ function updateTree() {
       .attr('data-nid', d.data.id)
       .attr('transform', `translate(${x},${y})`);
 
-    // shadow
     grp.append('rect').attr('x',2).attr('y',2).attr('width',NODE_W).attr('height',NODE_H).attr('rx',6)
       .style('fill','rgba(0,0,0,0.08)').style('filter','blur(3px)');
 
-    // body
     grp.append('rect').attr('class','node-body')
       .attr('width',NODE_W).attr('height',NODE_H).attr('rx',6)
-      .style('fill','#fff')
-      .style('stroke', color)
+      .style('fill','#fff').style('stroke', color)
       .style('stroke-width', isInspected ? 2.5 : 1.2);
 
-    // stripe
     const cid = 'c' + d.data.id;
     const def = grp.append('defs');
     def.append('clipPath').attr('id',cid).append('rect').attr('width',5).attr('height',NODE_H);
     grp.append('rect').attr('width',5).attr('height',NODE_H).attr('clip-path',`url(#${cid})`).style('fill',color);
 
-    // name
     const nameShort = d.data.name.length > 17 ? d.data.name.slice(0,16)+'…' : d.data.name;
     grp.append('text')
       .attr('x',14).attr('y', hasAttrs ? 21 : NODE_H/2+1).attr('dominant-baseline','central')
@@ -517,7 +583,6 @@ function updateTree() {
       .style('font-family',"'Segoe UI',sans-serif").style('pointer-events','none')
       .text(nameShort);
 
-    // attr preview
     if (hasAttrs) {
       const str = d.data.attributes.map(a=>`${a.name}: ${a.value}`).join(' · ');
       grp.append('text')
@@ -527,7 +592,6 @@ function updateTree() {
         .text('⚙ ' + (str.length>24 ? str.slice(0,23)+'…' : str));
     }
 
-    // children badge
     if (hasChildren) {
       const cx = NODE_W - 13, cy = NODE_H - 13;
       grp.append('circle').attr('cx',cx).attr('cy',cy).attr('r',9).style('fill',color).style('opacity',0.12);
@@ -537,7 +601,6 @@ function updateTree() {
         .text(d.data.children.length);
     }
 
-    // hit area
     grp.append('rect').attr('width',NODE_W).attr('height',NODE_H).attr('rx',6)
       .style('fill','transparent').style('cursor','pointer')
       .on('click', e => { e.stopPropagation(); openInspector(d.data); })
@@ -572,5 +635,57 @@ function fitView() {
 function zoomIn()  { d3.select(svgEl).call(zoom.scaleBy, 1.3); }
 function zoomOut() { d3.select(svgEl).call(zoom.scaleBy, 0.77); }
 
-/* INIT */
-updateTree();
+/* ================================================================
+   INIT
+================================================================ */
+(async () => {
+  await loadUseCaseList();
+  updateTree();
+})();
+
+
+/* ================================================================
+   SAVE
+================================================================ */
+// Estado de mudanças pendentes
+let _dirty = false;
+ 
+function markDirty() {
+  if (!currentUseCaseId) return;
+  _dirty = true;
+  const btn = document.getElementById('btn-save');
+  if (btn) {
+    btn.disabled = false;
+    document.getElementById('btn-save-label').textContent = 'Salvar';
+  }
+}
+ 
+function markClean() {
+  _dirty = false;
+  const btn = document.getElementById('btn-save');
+  if (btn) {
+    btn.disabled = true;
+    document.getElementById('btn-save-label').textContent = 'Salvar';
+  }
+}
+ 
+async function saveCurrentUseCase() {
+  if (!currentUseCaseId || !_dirty) return;
+  const btn = document.getElementById('btn-save');
+  const lbl = document.getElementById('btn-save-label');
+  btn.disabled = true;
+  lbl.textContent = 'Salvando...';
+  await API.saveTree(currentUseCaseId, model);
+  markClean();
+}
+
+async function loadUseCaseById(id) {
+  const data = await API.getUseCase(id);
+  currentUseCaseId = data.id;
+  model = data.tree || [];
+  closeInspector();
+  updateTree();
+  await loadUseCaseList();
+  document.getElementById('uc-title').textContent = 'Caso de Uso: '+data.name;
+  markClean(); // sempre limpo ao carregar
+}

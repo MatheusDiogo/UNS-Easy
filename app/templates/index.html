@@ -22,7 +22,7 @@
     UNS Modeler
   </div>
   <div class="topbar-sep"></div>
-  <div class="topbar-title">Árvore de Decomposição</div>
+  <div class="topbar-title" id="uc-title">Selecione um caso de uso</div>
   <div class="topbar-actions">
     <button class="btn btn-sm" onclick="clearAll()">
       <svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2h4v2M3 4l1 8h6l1-8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -32,9 +32,14 @@
       <svg viewBox="0 0 14 14" fill="none"><path d="M9 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5L9 1z" stroke="currentColor" stroke-width="1.2"/><path d="M9 1v4h4" stroke="currentColor" stroke-width="1.2"/></svg>
       Exemplo
     </button>
-    <button class="btn btn-sm btn-primary" onclick="generateJson()">
+    <button class="btn btn-sm" onclick="generateJson()">
       <svg viewBox="0 0 14 14" fill="none"><path d="M2 4l3 3-3 3M7 10h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Gerar JSON
+    </button>
+    <div class="topbar-sep"></div>
+    <button class="btn btn-sm btn-primary" id="btn-save" onclick="saveCurrentUseCase()" disabled>
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 2h8l2 2v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="8" width="6" height="4" rx="0.5" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="2" width="5" height="3" rx="0.5" stroke="currentColor" stroke-width="1.2"/></svg>
+      <span id="btn-save-label">Salvar</span>
     </button>
   </div>
 </div>
@@ -67,7 +72,28 @@
 <!-- WORKSPACE -->
 <div class="workspace">
 
-  <!-- INSPECTOR (esquerda) -->
+  <!-- USE CASE SIDEBAR -->
+  <div class="uc-sidebar" id="uc-sidebar">
+    <div class="uc-sidebar-header">
+      <span class="uc-sidebar-title">Casos de Uso</span>
+      <button class="btn btn-sm btn-primary" onclick="doNewUseCase()">
+        <svg viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Novo
+      </button>
+    </div>
+    <div class="uc-list" id="uc-list">
+      <div class="uc-empty">Carregando...</div>
+    </div>
+  </div>
+ 
+  <!-- TOGGLE -->
+  <button class="uc-toggle" id="uc-toggle" onclick="toggleSidebar()" title="Mostrar/ocultar casos de uso">
+    <svg viewBox="0 0 8 14" fill="none" width="7" height="13">
+      <path d="M6 1L1 7l5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <!-- INSPECTOR -->
   <div class="inspector" id="inspector">
     <div class="inspector-inner">
       <div class="inspector-header">
@@ -80,15 +106,19 @@
   </div>
 
   <!-- CANVAS -->
-  <div class="canvas-wrap" id="canvas-wrap">
-    <svg id="tree-svg">
-      <g id="canvas-g"></g>
-    </svg>
-    <div class="empty-state" id="empty-state">
-      <div class="empty-icon">⬡</div>
-      <div class="empty-title">Nenhum nó na árvore</div>
-      <div class="empty-hint">Clique em "Nível Raiz" para começar</div>
+  <div class="canvas-container">
+     <div class="canvas-wrap" id="canvas-wrap">
+      <svg id="tree-svg">
+        <g id="canvas-g"></g>
+      </svg>
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">⬡</div>
+        <div class="empty-title" id="empty-title">Selecione um caso de uso</div>
+        <div class="empty-hint">ou crie um novo na barra lateral</div>
+      </div>
     </div>
+ 
+    <!-- overlays fixos sobre o canvas, fora do scroll -->
     <div class="legend">
       <div class="legend-row"><div class="legend-dot" style="background:#2b579a"></div> Raiz</div>
       <div class="legend-row"><div class="legend-dot" style="background:#106ebe"></div> Nível 1</div>
@@ -97,9 +127,10 @@
     </div>
     <div class="zoom-controls">
       <div class="zoom-btn" onclick="zoomIn()">+</div>
-      <div class="zoom-btn" onclick="zoomOut()">−</div>
+      <div class="zoom-btn" onclick="zoomOut()">-</div>
       <div class="zoom-btn" onclick="fitView()" title="Ajustar">⊡</div>
     </div>
+ 
   </div>
 
   <!-- JSON PANEL -->
@@ -173,6 +204,5 @@
 </div>
 
 <script src="/static/js/script.js"></script>
-
 </body>
 </html>
