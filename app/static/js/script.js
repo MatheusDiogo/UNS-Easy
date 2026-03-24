@@ -428,8 +428,8 @@ function loadSample() {
             attributes: [
               { id: u(), name: 'HomeStatus', value: '', isInput: true  },
               { id: u(), name: 'CSALD',      value: '', isInput: true  },
-              { id: u(), name: 'CGOOD',      value: '', isInput: false },
-              { id: u(), name: 'NSEQ',       value: '4',isInput: false },
+              { id: u(), name: 'CGOOD',      value: '', isInput: true },
+              { id: u(), name: 'NSEQ',       value: '',isInput: true },
               { id: u(), name: 'TCData',     value: '', isInput: true  }
             ],
             children: [{ id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
