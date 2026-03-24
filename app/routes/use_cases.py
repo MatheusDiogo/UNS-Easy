@@ -169,3 +169,30 @@ def delete_use_case(uc_id):
     db.execute("DELETE FROM use_cases WHERE id = ?", (uc_id,))
     db.commit()
     return jsonify({"ok": True})
+
+# ── GET CONFIG ────────────────────────────────────────────────────────────────
+ 
+@use_cases_bp.route("/<int:uc_id>/config", methods=["GET"])
+def get_config(uc_id):
+    db = get_db()
+    uc = db.execute("SELECT config FROM use_cases WHERE id = ?", (uc_id,)).fetchone()
+    if not uc:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(json.loads(uc["config"] or "{}"))
+ 
+ 
+# ── SAVE CONFIG ───────────────────────────────────────────────────────────────
+ 
+@use_cases_bp.route("/<int:uc_id>/config", methods=["PUT"])
+def save_config(uc_id):
+    data = request.get_json(force=True)
+    db = get_db()
+    uc = db.execute("SELECT id FROM use_cases WHERE id = ?", (uc_id,)).fetchone()
+    if not uc:
+        return jsonify({"error": "not found"}), 404
+    db.execute(
+        "UPDATE use_cases SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (json.dumps(data), uc_id),
+    )
+    db.commit()
+    return jsonify({"ok": True})

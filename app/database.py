@@ -29,6 +29,7 @@ def init_db(app):
             CREATE TABLE IF NOT EXISTS use_cases (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 name       TEXT    NOT NULL,
+                config     TEXT NOT NULL DEFAULT '{}',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
@@ -52,4 +53,11 @@ def init_db(app):
             );
         """)
 
+        _add_column_if_missing(db, "use_cases",   "config",   "TEXT NOT NULL DEFAULT '{}'")
+
         db.commit()
+
+def _add_column_if_missing(db, table, column, definition):
+    existing = [row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in existing:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

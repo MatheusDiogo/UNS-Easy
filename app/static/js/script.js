@@ -8,6 +8,8 @@ const API = {
   async renameUseCase(id, name) { return fetch(`/api/use-cases/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) }).then(r => r.json()); },
   async saveTree(id, tree)      { return fetch(`/api/use-cases/${id}/tree`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tree}) }).then(r => r.json()); },
   async deleteUseCase(id)       { return fetch(`/api/use-cases/${id}`, { method:'DELETE' }).then(r => r.json()); },
+  async getConfig(id)           { return fetch(`/api/use-cases/${id}/config`).then(r => r.json()); },
+  async saveConfig(id, config)  { return fetch(`/api/use-cases/${id}/config`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config) }).then(r => r.json()); },
 };
 
 /* ================================================================
@@ -18,6 +20,7 @@ let currentUseCaseId = null;
 let selectedNode     = null;
 let inspectedNode    = null;
 let _dirty           = false;
+let ucConfig         = {}; // OPC UA + MQTT connection settings for current use case
 
 const LEVEL_COLORS      = ['#2b579a','#106ebe','#038387','#107c10','#ca5010','#6b3a7d'];
 const levelColor        = d => LEVEL_COLORS[Math.min(d, LEVEL_COLORS.length - 1)];
@@ -171,6 +174,10 @@ async function loadUseCaseById(id) {
   updateTree();
   await loadUseCaseList();
   document.getElementById('uc-title').textContent = 'Caso de Uso: ' + data.name;
+  ucConfig = data.config || {};
+  API.getConfig(currentUseCaseId)
+    .then(cfg => { if (cfg && !cfg.error) ucConfig = cfg; })
+    .catch(() => {})
   markClean();
 }
 
@@ -449,37 +456,223 @@ function loadSample() {
 }
 
 function generateJson() {
-  function bn(node) {
-    const r = {};
-    for (const a of node.attributes) r[a.name] = a.isInput ? null : (a.value || null);
-    for (const c of node.children)   r[c.name] = bn(c);
-    return r;
+  const opc  = ucConfig.opcua || {};
+  const mqtt = ucConfig.mqtt  || {};
+
+  const connections = [];
+
+  if (mqtt.name || mqtt.host) {
+    connections.push({
+      name: mqtt.name || 'MQTT',
+      uri:  `mqtt://${mqtt.host || ''}:${mqtt.port || 1883}`,
+      tags: [],
+      writes: { flattenModeledValues: false },
+      subscriptions: {},
+      storeForward: {
+        enabled: false,
+        maxEntries: 100,
+        waitOnFailureInterval: { duration: 1, units: 'Seconds' },
+      },
+      settings: {
+        connectionTimeoutSeconds: 10,
+        keepAliveSeconds: 60,
+        requestTimeoutMS: 5000,
+        cleanSession: true,
+        clientId: mqtt.clientId || '',
+        ssl: false,
+        redundantBrokers: [],
+        inputDiscovery: '',
+      },
+    });
   }
-  const root = {};
-  for (const n of model) root[n.name] = bn(n);
-  document.getElementById('json-output').textContent = JSON.stringify(root, null, 2);
+
+  if (opc.name || opc.host) {
+    connections.push({
+      name: opc.name || 'OPC UA',
+      uri:  `opc.tcp://${opc.host || ''}:${opc.port || 4840}${opc.path || ''}`,
+      tags: [],
+      writes: { flattenModeledValues: false },
+      subscriptions: {
+        subscriptionRate: { duration: 1, units: 'Seconds' },
+      },
+      storeForward: {
+        enabled: false,
+        maxEntries: 100,
+        waitOnFailureInterval: { duration: 1, units: 'Seconds' },
+      },
+      settings: {
+        security: 'None',
+        authentication: { type: 'Anonymous' },
+        connectTimeoutSeconds: 5,
+        requestTimeoutMS: 5000,
+        maxItemsPerRead: 512,
+        maxItemsPerWrite: 256,
+        sessionName: '',
+      },
+    });
+  }
+
+  const output = {
+    productInfo: {
+      company: 'HighByte',
+      product: 'IntelligenceHub',
+      version: '4.1.2',
+      build:   '2025.4.22.2',
+      stage:   'Release',
+    },
+    project: {
+      version:    10,
+      connections,
+      inputs:     [],
+      outputs:    [],
+      modeling:   { models: [], instances: [] },
+      conditions: [],
+      functions:  [],
+      tags:       [],
+      pipelines:  [],
+      namespace:  [],
+    },
+    network: {
+      groups: [],
+      hubs:   [],
+    },
+  };
+
+  document.getElementById('json-output').textContent = JSON.stringify(output, null, 2);
 }
 
 function copyJson() {
   navigator.clipboard.writeText(document.getElementById('json-output').textContent).catch(() => {});
 }
+function openConfigModal() {
+  if (!currentUseCaseId) { alert('Selecione um Caso de Uso primeiro.'); return; }
+  // Always fetch fresh config from backend before rendering
+  API.getConfig(currentUseCaseId)
+    .then(cfg => { if (cfg && !cfg.error) ucConfig = cfg; })
+    .catch(() => {})
+    .finally(() => _renderConfigModal());
+}
+
+function _renderConfigModal() {
+  const opc  = ucConfig.opcua || {};
+  const mqtt = ucConfig.mqtt  || {};
+
+  const overlay = document.createElement('div');
+  overlay.id = 'config-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:2000';
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);width:460px;overflow:hidden" onclick="event.stopPropagation()">
+      <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;color:var(--accent)">
+        Configurações de Conexão
+      </div>
+      <div style="padding:16px 20px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto">
+
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--border)">OPC UA</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Nome da conexão</label>
+            <input class="form-input" id="cfg-opc-name" value="${opc.name||''}" placeholder="ex: OPC_Server">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Host</label>
+            <input class="form-input" id="cfg-opc-host" value="${opc.host||''}" placeholder="ex: 192.168.1.10">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Porta</label>
+            <input class="form-input" id="cfg-opc-port" value="${opc.port||'4840'}" placeholder="4840">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Path</label>
+            <input class="form-input" id="cfg-opc-path" value="${opc.path||''}" placeholder="ex: /Discover">
+          </div>
+        </div>
+
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--border);margin-top:4px">MQTT</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Nome da conexão</label>
+            <input class="form-input" id="cfg-mqtt-name" value="${mqtt.name||''}" placeholder="ex: MQTT_HIGHBYTE">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Host</label>
+            <input class="form-input" id="cfg-mqtt-host" value="${mqtt.host||''}" placeholder="ex: 192.168.1.20">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Porta</label>
+            <input class="form-input" id="cfg-mqtt-port" value="${mqtt.port||'1883'}" placeholder="1883">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Client ID</label>
+            <input class="form-input" id="cfg-mqtt-clientid" value="${mqtt.clientId||''}" placeholder="ex: Highbyte_TOS">
+          </div>
+        </div>
+
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-sm" onclick="document.getElementById('config-modal').remove()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" onclick="saveConfig()">Salvar</button>
+      </div>
+    </div>`;
+
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('cfg-opc-name').focus(), 40);
+
+  overlay.querySelectorAll('.form-input').forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') saveConfig();
+      if (e.key === 'Escape') overlay.remove();
+    });
+  });
+}
+
+async function saveConfig() {
+  const config = {
+    opcua: {
+      name: document.getElementById('cfg-opc-name').value.trim(),
+      host: document.getElementById('cfg-opc-host').value.trim(),
+      port: document.getElementById('cfg-opc-port').value.trim(),
+      path: document.getElementById('cfg-opc-path').value.trim(),
+    },
+    mqtt: {
+      name:     document.getElementById('cfg-mqtt-name').value.trim(),
+      host:     document.getElementById('cfg-mqtt-host').value.trim(),
+      port:     document.getElementById('cfg-mqtt-port').value.trim(),
+      clientId: document.getElementById('cfg-mqtt-clientid').value.trim(),
+    },
+  };
+
+  try {
+    const res = await API.saveConfig(currentUseCaseId, config);
+    if (res && res.ok) {
+      ucConfig = config;
+      document.getElementById('config-modal').remove();
+    } else {
+      throw new Error(res?.error || 'Erro ao salvar');
+    }
+  } catch (err) {
+    console.error('Erro ao salvar config:', err);
+    alert('Erro ao salvar configurações. Verifique o console.');
+  }
+}
 
 function generateCsv() {
   // Single CSV row: all non-folder/non-output node names + empty attributes of instantiable nodes
   const cols = [];
- 
+
   function walk(node) {
     const flags = node.flags || [];
     const isFolder   = flags.includes(FLAG_FOLDER);
     const isOutput   = flags.includes(FLAG_DATA_OUTPUT);
     const isInst     = flags.includes(FLAG_INSTANTIABLE);
- 
+
     // Skip folders and outputs entirely (don't add name, don't recurse)
     if (isFolder || isOutput) return;
- 
+
     // Add node name as a column
     cols.push(node.name);
- 
+
     // If instantiable, add attributes with no value as columns
     if (isInst) {
       const emptyAttrs = (node.attributes || []).filter(a => {
@@ -488,28 +681,28 @@ function generateCsv() {
       });
       for (const a of emptyAttrs) cols.push(a.name);
     }
- 
+
     for (const child of (node.children || [])) walk(child);
   }
- 
+
   for (const root of model) walk(root);
- 
+
   if (!cols.length) {
     alert('Nenhum nó encontrado para exportar.');
     return;
   }
- 
+
   // Single line CSV
   const lines = [cols];
- 
+
   const csvContent = lines
     .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
     .join('\n');
- 
+
   // Filename with use case name
   const ucTitle = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
   const filename = `UNS Modeler - ${ucTitle}.csv`;
- 
+
   // Download
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
@@ -519,6 +712,8 @@ function generateCsv() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+
 
 /* ================================================================
    INSPECTOR
