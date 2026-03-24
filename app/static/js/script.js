@@ -425,43 +425,233 @@ function loadSample() {
   if (!currentUseCaseId) { alert('Selecione ou crie um Caso de Uso primeiro.'); return; }
   const u = () => crypto.randomUUID();
   model = [{
-    id: u(), name: 'Plant', flags: [], attributes: [], children: [{
-      id: u(), name: 'Shop', flags: [], attributes: [], children: [{
-        id: u(), name: 'Line', flags: [], attributes: [], children: [
-          { id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
-            { id: u(), name: 'WeldingWizard', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
-            { id: u(), name: 'CycleData',     flags: [FLAG_FOLDER], attributes: [], children: [
+    id: u(),
+    name: 'Plant',
+    flags: [],
+    attributes: [],
+    children: [{
+      id: u(),
+      name: 'Shop',
+      flags: [],
+      attributes: [],
+      children: [{
+        id: u(),
+        name: 'Line',
+        flags: [],
+        attributes: [],
+        children: [
+          // Item 1 da Line: Pasta de Temporário
+          {
+            id: u(),
+            name: 'Temp',
+            flags: [FLAG_FOLDER],
+            attributes: [],
+            children: [{
+              id: u(),
+              name: 'CycleTime',
+              flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
+              attributes: [],
+              children: []
+            }]
+          },
+          // Item 2 da Line: Data Products
+          {
+            id: u(),
+            name: 'DataProducts',
+            flags: [FLAG_FOLDER],
+            attributes: [],
+            children: [{
+              id: u(),
+              name: 'CycleTime',
+              flags: [FLAG_FOLDER],
+              attributes: [],
+              children: [
                 { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                { id: u(), name: 'Def', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
-              ] }
-          ]},
-          { id: u(), name: 'Station', flags: [], attributes: [], children: [{
-            id: u(), name: 'Robot', flags: [FLAG_INSTANTIABLE],
-            attributes: [
-              { id: u(), name: 'HomeStatus', value: '', isInput: true  },
-              { id: u(), name: 'CSALD',      value: '', isInput: true  },
-              { id: u(), name: 'CGOOD',      value: '', isInput: true },
-              { id: u(), name: 'NSEQ',       value: '',isInput: true },
-              { id: u(), name: 'TCData',     value: '', isInput: true  }
-            ],
-            children: [{ id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
-              { id: u(), name: 'WeldingWizard', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
-              { id: u(), name: 'CycleData',     flags: [FLAG_FOLDER], attributes: [], children: [
-                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                { id: u(), name: 'Def', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
-              ] }
-            ]}]
-          }]}
+                { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+              ]
+            }]
+          },
+          // Item 3 da Line: Station
+          {
+            id: u(),
+            name: 'Station',
+            flags: [],
+            attributes: [],
+            children: [{
+              id: u(),
+              name: 'Robot',
+              flags: [FLAG_INSTANTIABLE],
+              attributes: [
+                { id: u(), name: 'HomeStatus', value: '', isInput: true },
+                { id: u(), name: 'CSALD', value: '', isInput: true },
+                { id: u(), name: 'CGOOD', value: '', isInput: true },
+                { id: u(), name: 'NSEQ', value: '', isInput: true },
+                { id: u(), name: 'TCData', value: '', isInput: true }
+              ],
+              children: [
+                {
+                  id: u(),
+                  name: 'Temp',
+                  flags: [FLAG_FOLDER],
+                  attributes: [],
+                  children: [{
+                    id: u(),
+                    name: 'CycleTime',
+                    flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
+                    attributes: [],
+                    children: []
+                  }]
+                },
+                {
+                  id: u(),
+                  name: 'DataProducts',
+                  flags: [FLAG_FOLDER],
+                  attributes: [],
+                  children: [{
+                    id: u(),
+                    name: 'CycleTime',
+                    flags: [FLAG_FOLDER],
+                    attributes: [],
+                    children: [
+                      { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                      { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [] , children: [] }
+                    ]
+                  }]
+                }
+              ]
+            }]
+          }
         ]
       }]
     }]
   }];
+
   updateTree(); markDirty();
 }
 
 function generateJson() {
+  openCsvModal(csvData => {
+    _doGenerateJson(csvData);
+  });
+}
+
+function openCsvModal(onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.id = 'csv-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:2000';
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.2);width:440px;overflow:hidden" onclick="event.stopPropagation()">
+      <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;color:var(--accent)">
+        Anexar CSV de Endereços
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5">
+          Anexe o CSV gerado pelo botão <b>Gerar CSV</b> com os endereços preenchidos.
+          Os endereços serão usados para montar o JSON de exportação.
+        </div>
+
+        <label id="csv-drop-area" style="
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          gap:8px;padding:28px 20px;border:2px dashed var(--border2);border-radius:var(--radius);
+          cursor:pointer;transition:border-color 0.15s,background 0.15s;
+          background:var(--surface2);text-align:center;
+        ">
+          <svg viewBox="0 0 24 24" fill="none" width="28" height="28" style="opacity:0.35">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M14 2v6h6M12 11v6M9 14l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="csv-drop-label" style="font-size:12px;color:var(--text-muted)">
+            Clique para selecionar ou arraste o arquivo CSV aqui
+          </span>
+          <input type="file" id="csv-file-input" accept=".csv" style="display:none">
+        </label>
+
+        <div id="csv-skip-hint" style="font-size:11px;color:var(--text-muted);text-align:center">
+          Sem CSV? <a href="#" id="csv-skip-link" style="color:var(--accent);text-decoration:none">Continuar sem endereços</a>
+        </div>
+
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-sm" id="csv-cancel-btn">Cancelar</button>
+        <button class="btn btn-sm btn-primary" id="csv-confirm-btn" disabled>Confirmar</button>
+      </div>
+    </div>`;
+
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+
+  const fileInput   = document.getElementById('csv-file-input');
+  const dropArea    = document.getElementById('csv-drop-area');
+  const dropLabel   = document.getElementById('csv-drop-label');
+  const confirmBtn  = document.getElementById('csv-confirm-btn');
+  const cancelBtn   = document.getElementById('csv-cancel-btn');
+  const skipLink    = document.getElementById('csv-skip-link');
+  let parsedCsv     = null;
+
+  // Click to pick file
+  dropArea.addEventListener('click', () => fileInput.click());
+
+  // Drag & drop styling
+  dropArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropArea.style.borderColor = 'var(--accent)';
+    dropArea.style.background  = 'var(--accent-light)';
+  });
+  dropArea.addEventListener('dragleave', () => {
+    dropArea.style.borderColor = 'var(--border2)';
+    dropArea.style.background  = 'var(--surface2)';
+  });
+  dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.style.borderColor = 'var(--border2)';
+    dropArea.style.background  = 'var(--surface2)';
+    const file = e.dataTransfer.files[0];
+    if (file) handleCsvFile(file);
+  });
+
+  function handleCsvFile(file) {
+    if (!file.name.endsWith('.csv')) {
+      dropLabel.textContent = '⚠ Arquivo inválido — selecione um .csv';
+      dropLabel.style.color = 'var(--red)';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      parsedCsv = ev.target.result;
+      dropLabel.textContent = '✓ ' + file.name;
+      dropLabel.style.color = 'var(--teal)';
+      dropArea.style.borderColor = 'var(--teal)';
+      confirmBtn.disabled = false;
+    };
+    reader.readAsText(file);
+  }
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleCsvFile(fileInput.files[0]);
+  });
+
+  confirmBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    overlay.remove();
+    onConfirm(parsedCsv);
+  });
+
+  cancelBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    overlay.remove();
+  });
+
+  skipLink.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    overlay.remove();
+    onConfirm(null);
+  });
+}
+
+function _doGenerateJson(csvData) {
   const opc  = ucConfig.opcua || {};
   const mqtt = ucConfig.mqtt  || {};
 
@@ -488,6 +678,7 @@ function generateJson() {
         ssl: false,
         redundantBrokers: [],
         inputDiscovery: '',
+        maxInflight : 1000
       },
     });
   }
@@ -499,7 +690,7 @@ function generateJson() {
       tags: [],
       writes: { flattenModeledValues: false },
       subscriptions: {
-        subscriptionRate: { duration: 1, units: 'Seconds' },
+        subscriptionRate: { duration: 100, units: 'Milliseconds' },
       },
       storeForward: {
         enabled: false,
@@ -522,8 +713,8 @@ function generateJson() {
     productInfo: {
       company: 'HighByte',
       product: 'IntelligenceHub',
-      version: '4.1.2',
-      build:   '2025.4.22.2',
+      version: '4.2.5',
+      build:   '2026.1.5.1',
       stage:   'Release',
     },
     project: {
@@ -674,8 +865,8 @@ function generateCsv() {
     const isInput    = flags.includes(FLAG_DATA_INPUT);
     const isInst     = flags.includes(FLAG_INSTANTIABLE);
 
-    // Skip folders and outputs entirely (don't add name, don't recurse)
-    if (isFolder || isOutput) return;
+    // Skip folders, outputs and inputs entirely (don't add name, don't recurse)
+    if (isFolder || isOutput || isInput) return;
 
     // Add node name as a column
     cols.push(node.name);
@@ -845,8 +1036,8 @@ function renderInspector(node) {
     else if (action === 'add-child')           doAddChild(fresh);
     else if (action === 'add-attr')            doAddAttr(fresh);
     else if (action === 'toggle-instantiable') doToggleFlag(fresh, FLAG_INSTANTIABLE);
-    else if (action === 'toggle-dataoutput')   doToggleFlag(fresh, FLAG_DATA_OUTPUT);
     else if (action === 'toggle-datainput')    doToggleFlag(fresh, FLAG_DATA_INPUT);
+    else if (action === 'toggle-dataoutput')   doToggleFlag(fresh, FLAG_DATA_OUTPUT);
     else if (action === 'toggle-folder')       doToggleFlag(fresh, FLAG_FOLDER);
     else if (action === 'inspect-child')       { const c = findById(id); if (c) openInspector(c); }
     else if (action === 'rename-child')        { const c = findById(id); if (c) doRename(c); }
