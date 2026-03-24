@@ -443,6 +443,7 @@ function loadSample() {
   }];
   updateTree(); markDirty();
 }
+
 function generateJson() {
   function bn(node) {
     const r = {};
@@ -457,6 +458,62 @@ function generateJson() {
 
 function copyJson() {
   navigator.clipboard.writeText(document.getElementById('json-output').textContent).catch(() => {});
+}
+
+function generateCsv() {
+  // Single CSV row: all non-folder/non-output node names + empty attributes of instantiable nodes
+  const cols = [];
+ 
+  function walk(node) {
+    const flags = node.flags || [];
+    const isFolder   = flags.includes(FLAG_FOLDER);
+    const isOutput   = flags.includes(FLAG_DATA_OUTPUT);
+    const isInst     = flags.includes(FLAG_INSTANTIABLE);
+ 
+    // Skip folders and outputs entirely (don't add name, don't recurse)
+    if (isFolder || isOutput) return;
+ 
+    // Add node name as a column
+    cols.push(node.name);
+ 
+    // If instantiable, add attributes with no value as columns
+    if (isInst) {
+      const emptyAttrs = (node.attributes || []).filter(a => {
+        const v = a.value;
+        return v === null || v === undefined || v === '';
+      });
+      for (const a of emptyAttrs) cols.push(a.name);
+    }
+ 
+    for (const child of (node.children || [])) walk(child);
+  }
+ 
+  for (const root of model) walk(root);
+ 
+  if (!cols.length) {
+    alert('Nenhum nó encontrado para exportar.');
+    return;
+  }
+ 
+  // Single line CSV
+  const lines = [cols];
+ 
+  const csvContent = lines
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\n');
+ 
+  // Filename with use case name
+  const ucTitle = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
+  const filename = `UNS Modeler - ${ucTitle}.csv`;
+ 
+  // Download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ================================================================
