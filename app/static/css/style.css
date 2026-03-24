@@ -629,3 +629,15 @@ body {
   border-color: #6b3a7d;
   color: #6b3a7d;
 }
+
+/* Input flag button (dataInput) */
+.btn-flag-input.btn-flag-active {
+  background: #dff2df;
+  border-color: #107c10;
+  color: #107c10;
+}
+.btn-flag-input.btn-flag-active:hover {
+  background: #c8e8c8;
+  border-color: #107c10;
+  color: #107c10;
+}

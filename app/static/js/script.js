@@ -26,6 +26,7 @@ const LEVEL_COLORS      = ['#2b579a','#106ebe','#038387','#107c10','#ca5010','#6
 const levelColor        = d => LEVEL_COLORS[Math.min(d, LEVEL_COLORS.length - 1)];
 const FLAG_INSTANTIABLE = 'instantiable';
 const FLAG_DATA_OUTPUT  = 'dataOutput';
+const FLAG_DATA_INPUT   = 'dataInput';
 const FLAG_FOLDER       = 'folder';
 
 function mkNode(name) {
@@ -57,7 +58,8 @@ function removeNode(list, target) {
 
 function isInstantiable(node) { return (node.flags || []).includes(FLAG_INSTANTIABLE); }
 function isDataOutput(node)   { return (node.flags || []).includes(FLAG_DATA_OUTPUT); }
-function isFolder(node)        { return (node.flags || []).includes(FLAG_FOLDER); }
+function isDataInput(node)    { return (node.flags || []).includes(FLAG_DATA_INPUT); }
+function isFolder(node)       { return (node.flags || []).includes(FLAG_FOLDER); }
 
 function toggleFlag(node, flag) {
   if (!node.flags) node.flags = [];
@@ -428,7 +430,11 @@ function loadSample() {
         id: u(), name: 'Line', flags: [], attributes: [], children: [
           { id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
             { id: u(), name: 'WeldingWizard', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
-            { id: u(), name: 'CycleData',     flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+            { id: u(), name: 'CycleData',     flags: [FLAG_FOLDER], attributes: [], children: [
+                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                { id: u(), name: 'Def', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+              ] }
           ]},
           { id: u(), name: 'Station', flags: [], attributes: [], children: [{
             id: u(), name: 'Robot', flags: [FLAG_INSTANTIABLE],
@@ -442,8 +448,8 @@ function loadSample() {
             children: [{ id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
               { id: u(), name: 'WeldingWizard', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
               { id: u(), name: 'CycleData',     flags: [FLAG_FOLDER], attributes: [], children: [
-                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
-                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
+                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
                 { id: u(), name: 'Def', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
               ] }
             ]}]
@@ -665,6 +671,7 @@ function generateCsv() {
     const flags = node.flags || [];
     const isFolder   = flags.includes(FLAG_FOLDER);
     const isOutput   = flags.includes(FLAG_DATA_OUTPUT);
+    const isInput    = flags.includes(FLAG_DATA_INPUT);
     const isInst     = flags.includes(FLAG_INSTANTIABLE);
 
     // Skip folders and outputs entirely (don't add name, don't recurse)
@@ -737,6 +744,7 @@ function renderInspector(node) {
   const childColor = levelColor(depth + 1);
   const instanc    = isInstantiable(node);
   const dataOut    = isDataOutput(node);
+  const dataIn     = isDataInput(node);
   const folder     = isFolder(node);
 
   document.getElementById('ins-dot').style.background = color;
@@ -756,13 +764,17 @@ function renderInspector(node) {
           <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><rect x="1.5" y="3" width="11" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 3V2h4v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg>
           Instanciável
         </button>
-        <button class="btn btn-sm ${dataOut ? 'btn-flag-active btn-flag-data' : ''}" data-action="toggle-dataoutput">
-          <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 1v8M4 6l3 4 3-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-          Saída de Dados
-        </button>
         <button class="btn btn-sm ${folder ? 'btn-flag-active btn-flag-folder' : ''}" data-action="toggle-folder">
           <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M1 3.5A1 1 0 012 2.5h3l1.5 1.5H12a1 1 0 011 1V11a1 1 0 01-1 1H2a1 1 0 01-1-1V3.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
           Folder
+        </button>
+        <button class="btn btn-sm ${dataIn ? 'btn-flag-active btn-flag-input' : ''}" data-action="toggle-datainput">
+          <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 13V5M4 8l3-4 3 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Input
+        </button>
+        <button class="btn btn-sm ${dataOut ? 'btn-flag-active btn-flag-data' : ''}" data-action="toggle-dataoutput">
+          <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 1v8M4 6l3 4 3-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Output
         </button>
       </div>
     </div>
@@ -834,7 +846,8 @@ function renderInspector(node) {
     else if (action === 'add-attr')            doAddAttr(fresh);
     else if (action === 'toggle-instantiable') doToggleFlag(fresh, FLAG_INSTANTIABLE);
     else if (action === 'toggle-dataoutput')   doToggleFlag(fresh, FLAG_DATA_OUTPUT);
-    else if (action === 'toggle-folder')        doToggleFlag(fresh, FLAG_FOLDER);
+    else if (action === 'toggle-datainput')    doToggleFlag(fresh, FLAG_DATA_INPUT);
+    else if (action === 'toggle-folder')       doToggleFlag(fresh, FLAG_FOLDER);
     else if (action === 'inspect-child')       { const c = findById(id); if (c) openInspector(c); }
     else if (action === 'rename-child')        { const c = findById(id); if (c) doRename(c); }
     else if (action === 'delete-child')        { const c = findById(id); if (c) doDeleteChild(fresh, c); }
@@ -909,6 +922,7 @@ function updateTree() {
     const hasChildren = d.data.children.length > 0;
     const instanc     = isInstantiable(d.data);
     const dataOut     = isDataOutput(d.data);
+    const dataIn      = isDataInput(d.data);
     const folder      = isFolder(d.data);
 
     // grp SEMPRE primeiro
@@ -956,6 +970,13 @@ function updateTree() {
       bg.append('rect').attr('width',16).attr('height',10).attr('rx',3).style('fill','#ca5010').style('opacity',0.14);
       bg.append('text').attr('x',8).attr('y',5).attr('text-anchor','middle').attr('dominant-baseline','central')
         .style('font-size','7px').style('font-weight','700').style('fill','#ca5010').style('pointer-events','none').text('OUT');
+    }
+    if (dataIn) {
+      bx -= 17;
+      const bgIn = grp.append('g').attr('transform',`translate(${bx},4)`);
+      bgIn.append('rect').attr('width',16).attr('height',10).attr('rx',3).style('fill','#107c10').style('opacity',0.14);
+      bgIn.append('text').attr('x',8).attr('y',5).attr('text-anchor','middle').attr('dominant-baseline','central')
+        .style('font-size','7px').style('font-weight','700').style('fill','#107c10').style('pointer-events','none').text('IN');
     }
     if (instanc) {
       bx -= 17;
