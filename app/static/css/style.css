@@ -617,3 +617,15 @@ body {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* Folder flag button */
+.btn-flag-folder.btn-flag-active {
+  background: #f0e8f4;
+  border-color: #6b3a7d;
+  color: #6b3a7d;
+}
+.btn-flag-folder.btn-flag-active:hover {
+  background: #e4d3ec;
+  border-color: #6b3a7d;
+  color: #6b3a7d;
+}
