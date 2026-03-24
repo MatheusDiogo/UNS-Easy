@@ -434,7 +434,11 @@ function loadSample() {
             ],
             children: [{ id: u(), name: 'DataProducts', flags: [FLAG_FOLDER], attributes: [], children: [
               { id: u(), name: 'WeldingWizard', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
-              { id: u(), name: 'CycleData',     flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+              { id: u(), name: 'CycleData',     flags: [FLAG_FOLDER], attributes: [], children: [
+                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
+                { id: u(), name: 'Interm', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] },
+                { id: u(), name: 'Def', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+              ] }
             ]}]
           }]}
         ]
