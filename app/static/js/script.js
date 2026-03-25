@@ -753,7 +753,7 @@ function _doGenerateJson(csvData) {
         createdTopics.add(topic);
 
         outputs.push({
-          name: `Topic_${ucName}_${instanceName}`,
+          name: `OutTopic_${ucName}_${instanceName}`,
           connection: mqtt.name || 'MQTT',
           type: 'mqtt',
           qualifier: {
@@ -836,17 +836,15 @@ function buildOutputEntry(outputPath, rowData) {
   const instanceParts = [];
 
   for (const node of outputPath.path) {
-    if (rowData[node.name]) {
-      topicParts.push(rowData[node.name]);
-    } if (isTopic(node)) {
+    if (isTopic(node)) {
       topicParts.push(node.name);
-    } else{
+    } else if (rowData[node.name]) {
+      topicParts.push(rowData[node.name]);
+      instanceParts.push(rowData[node.name]);
+    } else {
+      topicParts.push(node.name);
       instanceParts.push(node.name);
     }
-  }
-
-  if (outputPath.path.length > 0) {
-    topicParts.push(outputPath.path[outputPath.path.length - 1].name);
   }
 
   return {
