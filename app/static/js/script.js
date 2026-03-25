@@ -727,6 +727,7 @@ function _doGenerateJson(csvData) {
   const outputs = [];
   const inputs = [];
   const opcInputs = [];
+  const models = buildModels(ucName, findAllInstantiableNodes(model));
 
   if (csvData) {
     const lines = csvData.trim().split('\n');
@@ -866,7 +867,7 @@ function _doGenerateJson(csvData) {
       connections,
       inputs: [...inputs, ...opcInputs],
       outputs,
-      modeling:   { models: [], instances: [] },
+      modeling:   { models: models, instances: [] },
       conditions: [],
       functions:  [],
       tags:       [],
@@ -1007,6 +1008,98 @@ function buildOpcInputEntry(opcPath, rowData) {
     attrName: attr.name,
     address
   };
+}
+
+function findAllInstantiableNodes(nodes, ancestors = [], results = []) {
+  for (const node of nodes) {
+    const currentAnc = [...ancestors, node];
+    if (isInstantiable(node)) {
+      results.push({ path: currentAnc, node: node });
+    }
+    if (node.children.length) {
+      findAllInstantiableNodes(node.children, currentAnc, results);
+    }
+  }
+  return results;
+}
+
+function buildModels(ucName, instantiableNodes) {
+  const models = [];
+  const groupAsPrefix = `/${ucName}`;
+
+  for (const { path, node } of instantiableNodes) {
+    let lastTopicIdx = -1;
+    for (let i = 0; i < path.length; i++) {
+      if (isTopic(path[i])) lastTopicIdx = i;
+    }
+
+    const structureNodes = path.slice(lastTopicIdx + 1);
+    const structureName = `${ucName}_${node.name}_Structure`;
+    const configName = `${ucName}_${node.name}_Config`;
+    const completeName = `${ucName}_${node.name}_Complete`;
+
+    const structureAttrs = structureNodes.map(n => ({
+      attributeType: "Internal",
+      name: n.name,
+      nullable: false,
+      required: false,
+      array: false,
+      internalType: "Any"
+    }));
+
+    const configAttrs = (node.attributes || []).map(a => ({
+      attributeType: "Internal",
+      name: a.name,
+      nullable: false,
+      required: false,
+      array: false,
+      internalType: "Any"
+    }));
+
+    const structureModel = {
+      name: structureName,
+      description: "Objetos Ativos utilizados no Caso de Uso.",
+      groupAs: `${groupAsPrefix}`,
+      tags: [node.name],
+      attributes: structureAttrs
+    };
+
+    const configModel = {
+      name: configName,
+      description: "Atributos técnicos utilizados no Caso de Uso.",
+      groupAs: `${groupAsPrefix}`,
+      tags: [node.name],
+      attributes: configAttrs
+    };
+
+    const completeModel = {
+      name: completeName,
+      groupAs: `${groupAsPrefix}`,
+      tags: [`${ucName}_${node.name}_Structure`, `${ucName}_${node.name}_Config`],
+      attributes: [
+        {
+          attributeType: "Modeled",
+          name: `${ucName}_${node.name}_Structure`,
+          nullable: false,
+          required: false,
+          array: false,
+          model: structureName
+        },
+        {
+          attributeType: "Modeled",
+          name: `${ucName}_${node.name}_Config`,
+          nullable: false,
+          required: false,
+          array: false,
+          model: configName
+        }
+      ]
+    };
+
+    models.push(structureModel, configModel, completeModel);
+  }
+
+  return models;
 }
 
 function copyJson() {
