@@ -725,6 +725,7 @@ function _doGenerateJson(csvData) {
 
   const ucName = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
   const outputs = [];
+  const inputs = [];
 
   if (csvData) {
     const lines = csvData.trim().split('\n');
@@ -735,7 +736,9 @@ function _doGenerateJson(csvData) {
 
     const header = parseCsvLine(lines[0]);
     const outputPaths = findAllOutputPaths(model);
-    const createdTopics = new Set();
+    const inputPaths = findAllInputPaths(model);
+    const createdOutputTopics = new Set();
+    const createdInputTopics = new Set();
 
     for (let i = 1; i < lines.length; i++) {
       const values = parseCsvLine(lines[i]);
@@ -749,8 +752,8 @@ function _doGenerateJson(csvData) {
       for (const outputPath of outputPaths) {
         const { topic, instanceName } = buildOutputEntry(outputPath, rowData);
 
-        if (createdTopics.has(topic)) continue;
-        createdTopics.add(topic);
+        if (createdOutputTopics.has(topic)) continue;
+        createdOutputTopics.add(topic);
 
         outputs.push({
           name: `OutTopic_${ucName}_${instanceName}`,
@@ -765,8 +768,37 @@ function _doGenerateJson(csvData) {
           }
         });
       }
+
+      for (const inputPath of inputPaths) {
+        const { topic, instanceName } = buildInputEntry(inputPath, rowData);
+
+        if (createdInputTopics.has(topic)) continue;
+        createdInputTopics.add(topic);
+
+        inputs.push({
+          name: `InpTopic_${mqtt.name || 'MQTT'}_${instanceName}`,
+          connection: mqtt.name || 'MQTT',
+          type: 'mqtt',
+          qualifier: {
+            payloadType: 'json',
+            qos: 0,
+            topic: topic,
+            includeTopic: false
+          },
+          cacheLifetime: {
+            enabled: false
+          },
+          template: {
+            type: 'Off'
+          },
+          parameters: {
+            type: 'EmptyParameters'
+          }
+        });
+      }
     }
   }
+  
 
   const output = {
     productInfo: {
@@ -779,7 +811,7 @@ function _doGenerateJson(csvData) {
     project: {
       version:    10,
       connections,
-      inputs:     [],
+      inputs,
       outputs,
       modeling:   { models: [], instances: [] },
       conditions: [],
@@ -831,11 +863,25 @@ function findAllOutputPaths(nodes, ancestors = []) {
   return outputs;
 }
 
-function buildOutputEntry(outputPath, rowData) {
+function findAllInputPaths(nodes, ancestors = []) {
+  const inputs = [];
+  for (const node of nodes) {
+    const currentAnc = [...ancestors, node];
+    if (isDataInput(node)) {
+      inputs.push({ path: currentAnc });
+    }
+    if (node.children.length) {
+      inputs.push(...findAllInputPaths(node.children, currentAnc));
+    }
+  }
+  return inputs;
+}
+
+function buildEntryName(path, rowData) {
   const topicParts = [];
   const instanceParts = [];
 
-  for (const node of outputPath.path) {
+  for (const node of path) {
     if (isTopic(node)) {
       topicParts.push(node.name);
     } else if (rowData[node.name]) {
@@ -851,6 +897,14 @@ function buildOutputEntry(outputPath, rowData) {
     topic: topicParts.join('/'),
     instanceName: instanceParts.join('_')
   };
+}
+
+function buildOutputEntry(outputPath, rowData) {
+  return buildEntryName(outputPath.path, rowData);
+}
+
+function buildInputEntry(inputPath, rowData) {
+  return buildEntryName(inputPath.path, rowData);
 }
 
 function copyJson() {
