@@ -491,7 +491,7 @@ function loadSample() {
                 attributes: [],
                 children: [{
                   id: u(),
-                  name: 'Robot',
+                  name: 'Machine',
                   flags: [FLAG_INSTANTIABLE],
                   attributes: [
                     { id: u(), name: 'HomeStatus', value: '', isInput: true },
