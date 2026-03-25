@@ -28,6 +28,7 @@ const FLAG_INSTANTIABLE = 'instantiable';
 const FLAG_DATA_OUTPUT  = 'dataOutput';
 const FLAG_DATA_INPUT   = 'dataInput';
 const FLAG_FOLDER       = 'folder';
+const FLAG_TOPIC        = 'topic';
 
 function mkNode(name) {
   return { id: crypto.randomUUID(), name, flags: [], attributes: [], children: [] };
@@ -60,6 +61,7 @@ function isInstantiable(node) { return (node.flags || []).includes(FLAG_INSTANTI
 function isDataOutput(node)   { return (node.flags || []).includes(FLAG_DATA_OUTPUT); }
 function isDataInput(node)    { return (node.flags || []).includes(FLAG_DATA_INPUT); }
 function isFolder(node)       { return (node.flags || []).includes(FLAG_FOLDER); }
+function isTopic(node)        { return (node.flags || []).includes(FLAG_TOPIC); }
 
 function toggleFlag(node, flag) {
   if (!node.flags) node.flags = [];
@@ -861,12 +863,13 @@ function generateCsv() {
   function walk(node) {
     const flags = node.flags || [];
     const isFolder   = flags.includes(FLAG_FOLDER);
+    const isTopicNode = flags.includes(FLAG_TOPIC);
     const isOutput   = flags.includes(FLAG_DATA_OUTPUT);
     const isInput    = flags.includes(FLAG_DATA_INPUT);
     const isInst     = flags.includes(FLAG_INSTANTIABLE);
 
-    // Skip folders, outputs and inputs entirely (don't add name, don't recurse)
-    if (isFolder || isOutput || isInput) return;
+    // Skip folders, topics, outputs and inputs entirely (don't add name, don't recurse)
+    if (isFolder || isTopicNode || isOutput || isInput) return;
 
     // Add node name as a column
     cols.push(node.name);
@@ -937,6 +940,7 @@ function renderInspector(node) {
   const dataOut    = isDataOutput(node);
   const dataIn     = isDataInput(node);
   const folder     = isFolder(node);
+  const topic      = isTopic(node);
 
   document.getElementById('ins-dot').style.background = color;
   document.getElementById('ins-name').textContent = node.name;
@@ -959,6 +963,10 @@ function renderInspector(node) {
           <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M1 3.5A1 1 0 012 2.5h3l1.5 1.5H12a1 1 0 011 1V11a1 1 0 01-1 1H2a1 1 0 01-1-1V3.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
           Folder
         </button>
+        <button class="btn btn-sm ${topic ? 'btn-flag-active btn-flag-topic' : ''}" data-action="toggle-topic">
+          <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Tópico
+        </button>
         <button class="btn btn-sm ${dataIn ? 'btn-flag-active btn-flag-input' : ''}" data-action="toggle-datainput">
           <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 13V5M4 8l3-4 3 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
           Input
@@ -968,7 +976,7 @@ function renderInspector(node) {
           Output
         </button>
       </div>
-    </div>
+    </div>    </div>
 
     <div class="ins-section">
       <div class="ins-section-header"><span class="ins-section-title">Nó</span></div>
@@ -1038,7 +1046,8 @@ function renderInspector(node) {
     else if (action === 'toggle-instantiable') doToggleFlag(fresh, FLAG_INSTANTIABLE);
     else if (action === 'toggle-datainput')    doToggleFlag(fresh, FLAG_DATA_INPUT);
     else if (action === 'toggle-dataoutput')   doToggleFlag(fresh, FLAG_DATA_OUTPUT);
-    else if (action === 'toggle-folder')       doToggleFlag(fresh, FLAG_FOLDER);
+    else if (action === 'toggle-folder')        doToggleFlag(fresh, FLAG_FOLDER);
+    else if (action === 'toggle-topic')         doToggleFlag(fresh, FLAG_TOPIC);
     else if (action === 'inspect-child')       { const c = findById(id); if (c) openInspector(c); }
     else if (action === 'rename-child')        { const c = findById(id); if (c) doRename(c); }
     else if (action === 'delete-child')        { const c = findById(id); if (c) doDeleteChild(fresh, c); }
@@ -1115,6 +1124,7 @@ function updateTree() {
     const dataOut     = isDataOutput(d.data);
     const dataIn      = isDataInput(d.data);
     const folder      = isFolder(d.data);
+    const topic       = isTopic(d.data);
 
     // grp SEMPRE primeiro
     const grp = ng.append('g')
@@ -1182,6 +1192,13 @@ function updateTree() {
       bg3.append('rect').attr('width',16).attr('height',10).attr('rx',3).style('fill','#6b3a7d').style('opacity',0.14);
       bg3.append('text').attr('x',8).attr('y',5).attr('text-anchor','middle').attr('dominant-baseline','central')
         .style('font-size','7px').style('font-weight','700').style('fill','#6b3a7d').style('pointer-events','none').text('FLD');
+    }
+    if (topic) {
+      bx -= 17;
+      const bg4 = grp.append('g').attr('transform',`translate(${bx},4)`);
+      bg4.append('rect').attr('width',16).attr('height',10).attr('rx',3).style('fill','#038387').style('opacity',0.14);
+      bg4.append('text').attr('x',8).attr('y',5).attr('text-anchor','middle').attr('dominant-baseline','central')
+        .style('font-size','7px').style('font-weight','700').style('fill','#038387').style('pointer-events','none').text('TPK');
     }
     // hit area — sempre por último
     grp.append('rect').attr('width',NODE_W).attr('height',NODE_H).attr('rx',6)

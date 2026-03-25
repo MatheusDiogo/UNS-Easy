@@ -641,3 +641,15 @@ body {
   border-color: #107c10;
   color: #107c10;
 }
+
+/* Topic flag button */
+.btn-flag-topic.btn-flag-active {
+  background: #d6f0f0;
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.btn-flag-topic.btn-flag-active:hover {
+  background: #b8e4e4;
+  border-color: var(--teal);
+  color: var(--teal);
+}
