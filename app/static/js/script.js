@@ -726,6 +726,7 @@ function _doGenerateJson(csvData) {
   const ucName = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
   const outputs = [];
   const inputs = [];
+  const opcInputs = [];
 
   if (csvData) {
     const lines = csvData.trim().split('\n');
@@ -797,6 +798,58 @@ function _doGenerateJson(csvData) {
         });
       }
     }
+
+    if (opc.name || opc.host) {
+      const opcInputPaths = findAllInputAttributePaths(model);
+      const createdOpcInputs = new Set();
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        if (values.length === 0 || values.every(v => v.trim() === '')) continue;
+
+        const rowData = {};
+        header.forEach((col, idx) => {
+          rowData[col] = values[idx] || '';
+        });
+
+        for (const opcPath of opcInputPaths) {
+          const { instanceName, attrName, address } = buildOpcInputEntry(opcPath, rowData);
+
+          if (!address || address.trim() === '') continue;
+
+          const inputKey = `${instanceName}_${attrName}`;
+          if (createdOpcInputs.has(inputKey)) continue;
+          createdOpcInputs.add(inputKey);
+
+          opcInputs.push({
+            name: `${instanceName}_${attrName}`,
+            connection: opc.name || 'OPC UA',
+            type: 'opc.tcp',
+            qualifier: {
+              namespaceIndex: 3,
+              identifierType: 'String',
+              identifier: address.trim(),
+              type: 'Tag',
+              dataType: 'Auto',
+              samplingInterval: {
+                units: 'Milliseconds',
+                duration: 100
+              },
+              isComplex: true
+            },
+            cacheLifetime: {
+              enabled: false
+            },
+            template: {
+              type: 'Off'
+            },
+            parameters: {
+              type: 'EmptyParameters'
+            }
+          });
+        }
+      }
+    }
   }
   
 
@@ -811,7 +864,7 @@ function _doGenerateJson(csvData) {
     project: {
       version:    10,
       connections,
-      inputs,
+      inputs: [...inputs, ...opcInputs],
       outputs,
       modeling:   { models: [], instances: [] },
       conditions: [],
@@ -905,6 +958,55 @@ function buildOutputEntry(outputPath, rowData) {
 
 function buildInputEntry(inputPath, rowData) {
   return buildEntryName(inputPath.path, rowData);
+}
+
+function findAllInputAttributePaths(nodes, ancestors = []) {
+  const paths = [];
+  for (const node of nodes) {
+    const currentAnc = [...ancestors, node];
+    if (isInstantiable(node)) {
+      const inputAttrs = (node.attributes || []).filter(a => a.isInput);
+      for (const attr of inputAttrs) {
+        paths.push({ path: currentAnc, attribute: attr });
+      }
+    }
+    if (node.children.length) {
+      paths.push(...findAllInputAttributePaths(node.children, currentAnc));
+    }
+  }
+  return paths;
+}
+
+function buildOpcInputEntry(opcPath, rowData) {
+  const path = opcPath.path;
+  const attr = opcPath.attribute;
+  const instanceParts = [];
+  let lastTopicIdx = -1;
+
+  for (let i = 0; i < path.length; i++) {
+    const node = path[i];
+    if (isTopic(node)) lastTopicIdx = i;
+  }
+
+  for (let i = 0; i < path.length; i++) {
+    const node = path[i];
+    if (i <= lastTopicIdx) continue;
+
+    if (rowData[node.name]) {
+      instanceParts.push(rowData[node.name]);
+    } else {
+      instanceParts.push(node.name);
+    }
+  }
+
+  const instanceName = instanceParts.join('_');
+  const address = rowData[attr.name] || '';
+
+  return {
+    instanceName,
+    attrName: attr.name,
+    address
+  };
 }
 
 function copyJson() {
