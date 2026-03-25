@@ -1219,19 +1219,21 @@ async function saveConfig() {
 }
 
 function generateCsv() {
-  // Single CSV row: all non-folder/non-output node names + empty attributes of instantiable nodes
   const cols = [];
 
   function walk(node) {
     const flags = node.flags || [];
-    const isFolder   = flags.includes(FLAG_FOLDER);
+    const isFolder    = flags.includes(FLAG_FOLDER);
     const isTopicNode = flags.includes(FLAG_TOPIC);
-    const isOutput   = flags.includes(FLAG_DATA_OUTPUT);
-    const isInput    = flags.includes(FLAG_DATA_INPUT);
-    const isInst     = flags.includes(FLAG_INSTANTIABLE);
+    const isOutput    = flags.includes(FLAG_DATA_OUTPUT);
+    const isInput     = flags.includes(FLAG_DATA_INPUT);
+    const isInst      = flags.includes(FLAG_INSTANTIABLE);
 
-    // Skip folders, topics, outputs and inputs entirely (don't add name, don't recurse)
-    if (isFolder || isTopicNode || isOutput || isInput) return;
+    // Don't add as column but continue recursing to children
+    if (isFolder || isOutput || isInput ||isTopicNode) {
+      for (const child of (node.children || [])) walk(child);
+      return;
+    }
 
     // Add node name as a column
     cols.push(node.name);
@@ -1255,18 +1257,15 @@ function generateCsv() {
     return;
   }
 
-  // Single line CSV
   const lines = [cols];
 
   const csvContent = lines
     .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
     .join('\n');
 
-  // Filename with use case name
   const ucTitle = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
   const filename = `UNS Modeler - ${ucTitle}.csv`;
 
-  // Download
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
