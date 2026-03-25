@@ -428,102 +428,114 @@ function loadSample() {
   const u = () => crypto.randomUUID();
   model = [{
     id: u(),
-    name: 'Plant',
-    flags: [],
+    name: 'eMille',
+    flags: [FLAG_TOPIC],
     attributes: [],
     children: [{
       id: u(),
-      name: 'Shop',
-      flags: [],
+      name: 'v1',
+      flags: [FLAG_TOPIC],
       attributes: [],
       children: [{
         id: u(),
-        name: 'Line',
+        name: 'Plant',
         flags: [],
         attributes: [],
-        children: [
-          // Item 1 da Line: Pasta de Temporário
-          {
+        children: [{
+          id: u(),
+          name: 'Shop',
+          flags: [],
+          attributes: [],
+          children: [{
             id: u(),
-            name: 'Temp',
-            flags: [FLAG_FOLDER],
-            attributes: [],
-            children: [{
-              id: u(),
-              name: 'CycleTime',
-              flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
-              attributes: [],
-              children: []
-            }]
-          },
-          // Item 2 da Line: Data Products
-          {
-            id: u(),
-            name: 'DataProducts',
-            flags: [FLAG_FOLDER],
-            attributes: [],
-            children: [{
-              id: u(),
-              name: 'CycleTime',
-              flags: [FLAG_FOLDER],
-              attributes: [],
-              children: [
-                { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
-              ]
-            }]
-          },
-          // Item 3 da Line: Station
-          {
-            id: u(),
-            name: 'Station',
+            name: 'Line',
             flags: [],
             attributes: [],
-            children: [{
-              id: u(),
-              name: 'Robot',
-              flags: [FLAG_INSTANTIABLE],
-              attributes: [
-                { id: u(), name: 'HomeStatus', value: '', isInput: true },
-                { id: u(), name: 'CSALD', value: '', isInput: true },
-                { id: u(), name: 'CGOOD', value: '', isInput: true },
-                { id: u(), name: 'NSEQ', value: '', isInput: true },
-                { id: u(), name: 'TCData', value: '', isInput: true }
-              ],
-              children: [
-                {
+            children: [
+              // Item 1 da Line: Pasta de Temporário
+              {
+                id: u(),
+                name: 'Temp',
+                flags: [FLAG_FOLDER],
+                attributes: [],
+                children: [{
                   id: u(),
-                  name: 'Temp',
-                  flags: [FLAG_FOLDER],
+                  name: 'CycleTime',
+                  flags: [FLAG_TOPIC, FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
                   attributes: [],
-                  children: [{
-                    id: u(),
-                    name: 'CycleTime',
-                    flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
-                    attributes: [],
-                    children: []
-                  }]
-                },
-                {
+                  children: []
+                }]
+              },
+              // Item 2 da Line: Data Products
+              {
+                id: u(),
+                name: 'DataProducts',
+                flags: [FLAG_TOPIC],
+                attributes: [],
+                children: [{
                   id: u(),
-                  name: 'DataProducts',
-                  flags: [FLAG_FOLDER],
+                  name: 'CycleTime',
+                  flags: [FLAG_TOPIC],
                   attributes: [],
-                  children: [{
-                    id: u(),
-                    name: 'CycleTime',
-                    flags: [FLAG_FOLDER],
-                    attributes: [],
-                    children: [
-                      { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
-                      { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [] , children: [] }
-                    ]
-                  }]
-                }
-              ]
-            }]
-          }
-        ]
+                  children: [
+                    { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                    { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [], children: [] }
+                  ]
+                }]
+              },
+              // Item 3 da Line: Station
+              {
+                id: u(),
+                name: 'Station',
+                flags: [],
+                attributes: [],
+                children: [{
+                  id: u(),
+                  name: 'Robot',
+                  flags: [FLAG_INSTANTIABLE],
+                  attributes: [
+                    { id: u(), name: 'HomeStatus', value: '', isInput: true },
+                    { id: u(), name: 'CSALD', value: '', isInput: true },
+                    { id: u(), name: 'CGOOD', value: '', isInput: true },
+                    { id: u(), name: 'NSEQ', value: '', isInput: true },
+                    { id: u(), name: 'TCData', value: '', isInput: true }
+                  ],
+                  children: [
+                    {
+                      id: u(),
+                      name: 'Temp',
+                      flags: [FLAG_FOLDER],
+                      attributes: [],
+                      children: [{
+                        id: u(),
+                        name: 'CycleTime',
+                        flags: [FLAG_TOPIC, FLAG_DATA_OUTPUT, FLAG_DATA_INPUT],
+                        attributes: [],
+                        children: []
+                      }]
+                    },
+                    {
+                      id: u(),
+                      name: 'DataProducts',
+                      flags: [FLAG_TOPIC],
+                      attributes: [],
+                      children: [{
+                        id: u(),
+                        name: 'CycleTime',
+                        flags: [FLAG_TOPIC],
+                        attributes: [],
+                        children: [
+                          { id: u(), name: 'Raw', flags: [FLAG_DATA_OUTPUT, FLAG_DATA_INPUT], attributes: [], children: [] },
+                          { id: u(), name: 'Final', flags: [FLAG_DATA_OUTPUT], attributes: [] , children: [] }
+                        ]
+                      }]
+                    }
+                  ]
+                }]
+              }
+            ]
+          }]
+        }]
       }]
     }]
   }];
@@ -711,6 +723,51 @@ function _doGenerateJson(csvData) {
     });
   }
 
+  const ucName = document.getElementById('uc-title').textContent.replace('Caso de Uso: ', '').trim();
+  const outputs = [];
+
+  if (csvData) {
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) {
+      alert('CSV inválido: precisa de cabeçalho e pelo menos uma linha de dados.');
+      return;
+    }
+
+    const header = parseCsvLine(lines[0]);
+    const outputPaths = findAllOutputPaths(model);
+    const createdTopics = new Set();
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCsvLine(lines[i]);
+      if (values.length === 0 || values.every(v => v.trim() === '')) continue;
+
+      const rowData = {};
+      header.forEach((col, idx) => {
+        rowData[col] = values[idx] || '';
+      });
+
+      for (const outputPath of outputPaths) {
+        const { topic, instanceName } = buildOutputEntry(outputPath, rowData);
+
+        if (createdTopics.has(topic)) continue;
+        createdTopics.add(topic);
+
+        outputs.push({
+          name: `Topic_${ucName}_${instanceName}`,
+          connection: mqtt.name || 'MQTT',
+          type: 'mqtt',
+          qualifier: {
+            qos: 0,
+            namedRoot: false,
+            breakupArrays: false,
+            topic: topic,
+            retained: true
+          }
+        });
+      }
+    }
+  }
+
   const output = {
     productInfo: {
       company: 'HighByte',
@@ -723,7 +780,7 @@ function _doGenerateJson(csvData) {
       version:    10,
       connections,
       inputs:     [],
-      outputs:    [],
+      outputs,
       modeling:   { models: [], instances: [] },
       conditions: [],
       functions:  [],
@@ -738,6 +795,64 @@ function _doGenerateJson(csvData) {
   };
 
   document.getElementById('json-output').textContent = JSON.stringify(output, null, 2);
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ';' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function findAllOutputPaths(nodes, ancestors = []) {
+  const outputs = [];
+  for (const node of nodes) {
+    const currentAnc = [...ancestors, node];
+    if (isDataOutput(node)) {
+      outputs.push({ path: currentAnc });
+    }
+    if (node.children.length) {
+      outputs.push(...findAllOutputPaths(node.children, currentAnc));
+    }
+  }
+  return outputs;
+}
+
+function buildOutputEntry(outputPath, rowData) {
+  const topicParts = [];
+  const instanceParts = [];
+
+  for (const node of outputPath.path) {
+    if (rowData[node.name]) {
+      topicParts.push(rowData[node.name]);
+    } if (isTopic(node)) {
+      topicParts.push(node.name);
+    } else{
+      instanceParts.push(node.name);
+    }
+  }
+
+  if (outputPath.path.length > 0) {
+    topicParts.push(outputPath.path[outputPath.path.length - 1].name);
+  }
+
+  return {
+    topic: topicParts.join('/'),
+    instanceName: instanceParts.join('_')
+  };
 }
 
 function copyJson() {
