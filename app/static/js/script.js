@@ -543,7 +543,30 @@ function loadSample() {
   updateTree(); markDirty();
 }
 
+function hasInputAttributes(nodes) {
+  for (const node of nodes) {
+    const hasInput = (node.attributes || []).some(a => a.isInput);
+    if (hasInput) return true;
+    if (node.children && hasInputAttributes(node.children)) return true;
+  }
+  return false;
+}
+
 function generateJson() {
+  const opc  = ucConfig.opcua || {};
+  const mqtt = ucConfig.mqtt  || {};
+  const hasInput = hasInputAttributes(model);
+
+  if (!mqtt.name) {
+    alert('Configure a conexão MQTT antes de gerar o JSON.');
+    return;
+  }
+
+  if (hasInput && !opc.name) {
+    alert('O modelo possui atributos de Input. Configure a conexão OPC antes de gerar o JSON.');
+    return;
+  }
+
   openCsvModal(csvData => {
     _doGenerateJson(csvData);
   });
