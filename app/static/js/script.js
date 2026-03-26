@@ -727,7 +727,9 @@ function _doGenerateJson(csvData) {
   const outputs = [];
   const inputs = [];
   const opcInputs = [];
-  const models = buildModels(ucName, findAllInstantiableNodes(model));
+  const instances = [];
+  const instantiableNodes = findAllInstantiableNodes(model);
+  const models = buildModels(ucName, instantiableNodes);
 
   if (csvData) {
     const lines = csvData.trim().split('\n');
@@ -741,6 +743,7 @@ function _doGenerateJson(csvData) {
     const inputPaths = findAllInputPaths(model);
     const createdOutputTopics = new Set();
     const createdInputTopics = new Set();
+    const createdOpcInputs = new Set();
 
     for (let i = 1; i < lines.length; i++) {
       const values = parseCsvLine(lines[i]);
@@ -798,20 +801,10 @@ function _doGenerateJson(csvData) {
           }
         });
       }
-    }
 
-    if (opc.name || opc.host) {
-      const opcInputPaths = findAllInputAttributePaths(model);
-      const createdOpcInputs = new Set();
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = parseCsvLine(lines[i]);
-        if (values.length === 0 || values.every(v => v.trim() === '')) continue;
-
-        const rowData = {};
-        header.forEach((col, idx) => {
-          rowData[col] = values[idx] || '';
-        });
+      if (opc.name || opc.host) {
+        const opcInputPaths = findAllInputAttributePaths(model);
+        const rowOpcInputs = [];
 
         for (const opcPath of opcInputPaths) {
           const { instanceName, attrName, address } = buildOpcInputEntry(opcPath, rowData);
@@ -819,40 +812,45 @@ function _doGenerateJson(csvData) {
           if (!address || address.trim() === '') continue;
 
           const inputKey = `${instanceName}_${attrName}`;
-          if (createdOpcInputs.has(inputKey)) continue;
-          createdOpcInputs.add(inputKey);
 
-          opcInputs.push({
-            name: `${instanceName}_${attrName}`,
-            connection: opc.name || 'OPC UA',
-            type: 'opc.tcp',
-            qualifier: {
+          if (!createdOpcInputs.has(inputKey)) {
+            createdOpcInputs.add(inputKey);
+            opcInputs.push({
+              name: `${instanceName}_${attrName}`,
+              connection: opc.name || 'OPC UA',
+              type: 'opc.tcp',
+              qualifier: {
               namespaceIndex: 3,
-              identifierType: 'String',
-              identifier: address.trim(),
-              type: 'Tag',
-              dataType: 'Auto',
-              samplingInterval: {
-                units: 'Milliseconds',
-                duration: 100
+                identifierType: 'String',
+                identifier: address.trim(),
+                type: 'Tag',
+                dataType: 'Auto',
+                samplingInterval: {
+                  units: 'Milliseconds',
+                  duration: 100
+                },
+                isComplex: true
               },
-              isComplex: true
-            },
-            cacheLifetime: {
-              enabled: false
-            },
-            template: {
-              type: 'Off'
-            },
-            parameters: {
-              type: 'EmptyParameters'
-            }
-          });
+              cacheLifetime: {
+                enabled: false
+              },
+              template: {
+                type: 'Off'
+              },
+              parameters: {
+                type: 'EmptyParameters'
+              }
+            });
+          }
+
+          rowOpcInputs.push({ instanceName, attrName, address: address.trim() });
         }
+
+        const lineInstances = buildInstancesForRow(ucName, instantiableNodes, rowData, opc.name || 'OPC UA');
+        instances.push(...lineInstances);
       }
     }
   }
-  
 
   const output = {
     productInfo: {
@@ -867,7 +865,7 @@ function _doGenerateJson(csvData) {
       connections,
       inputs: [...inputs, ...opcInputs],
       outputs,
-      modeling:   { models: models, instances: [] },
+      modeling:   { models: models, instances: instances },
       conditions: [],
       functions:  [],
       tags:       [],
@@ -1100,6 +1098,86 @@ function buildModels(ucName, instantiableNodes) {
   }
 
   return models;
+}
+
+function buildInstancesForRow(ucName, instantiableNodes, rowData, opcConnectionName) {
+  const instances = [];
+
+  for (const { path, node } of instantiableNodes) {
+    let lastTopicIdx = -1;
+    for (let i = 0; i < path.length; i++) {
+      if (isTopic(path[i])) lastTopicIdx = i;
+    }
+
+    const structureNodes = path.slice(lastTopicIdx + 1);
+    const instanceName = buildInstanceNameFromPath(structureNodes, rowData);
+    const completeModelName = `${ucName}_${node.name}_Complete`;
+    const structureGroupName = `${ucName}_${node.name}_Structure`;
+    const configGroupName = `${ucName}_${node.name}_Config`;
+
+    const structureAttrs = structureNodes.map(n => ({
+      name: n.name,
+      expression: {
+        type: 'Reference',
+        reference: ''
+      }
+    }));
+
+    const configAttrs = (node.attributes || [])
+      .filter(a => a.isInput)
+      .map(a => {
+        const reference = `{{Connection.${opcConnectionName}.${instanceName}_${a.name}}}`;
+        return {
+          name: a.name,
+          expression: {
+            type: 'Reference',
+            reference: reference
+          }
+        };
+      });
+
+    const completeInstance = {
+      name: `Instance_${instanceName}_Complete`,
+      groupAs: `/Instances_${node.name}`,
+      tags: [],
+      model: completeModelName,
+      rootValueAs: 'Object',
+      template: {
+        type: 'Off'
+      },
+      executeMode: 'V4',
+      initExpression: '',
+      attributes: [
+        {
+          name: structureGroupName,
+          expression: {
+            type: 'Reference',
+            reference: ''
+          },
+          attributes: structureAttrs
+        },
+        {
+          name: configGroupName,
+          expression: {
+            type: 'Reference',
+            reference: ''
+          },
+          attributes: configAttrs
+        }
+      ],
+      parameters: {
+        type: 'EmptyParameters'
+      }
+    };
+
+    instances.push(completeInstance);
+  }
+
+  return instances;
+}
+
+function buildInstanceNameFromPath(path, rowData) {
+  return path.map(n => rowData[n.name] || n.name).join('_');
 }
 
 function copyJson() {
