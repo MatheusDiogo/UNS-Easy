@@ -1238,7 +1238,7 @@ function _renderConfigModal() {
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Host</label>
-            <input class="form-input" id="cfg-opc-host" value="${opc.host||''}" placeholder="ex: 192.168.1.10">
+            <input class="form-input" id="cfg-opc-host" value="${opc.host||''}" placeholder="ex: 192.168.10.45">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Porta</label>
@@ -1258,7 +1258,7 @@ function _renderConfigModal() {
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Host</label>
-            <input class="form-input" id="cfg-mqtt-host" value="${mqtt.host||''}" placeholder="ex: 192.168.1.20">
+            <input class="form-input" id="cfg-mqtt-host" value="${mqtt.host||''}" placeholder="ex: 172.31.25.108">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Porta</label>
